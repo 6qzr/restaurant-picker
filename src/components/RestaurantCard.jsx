@@ -1,9 +1,9 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Star, MapPin, ThumbsUp, ThumbsDown, Navigation } from 'lucide-react';
+import { Star, MapPin, ThumbsUp, ThumbsDown, Navigation, RefreshCw, Ban } from 'lucide-react';
 import { clsx } from 'clsx';
 
-const RestaurantCard = ({ place, type, onVote, votedState }) => {
+const RestaurantCard = ({ place, type, onVote, votedState, onSwap }) => {
     if (!place) return null;
 
     const {
@@ -33,6 +33,12 @@ const RestaurantCard = ({ place, type, onVote, votedState }) => {
         wildcard: 'Wildcard',
     };
 
+    const badgeDescriptions = {
+        bestRated: 'Trusted by many. High rating & popularity.',
+        hiddenGem: 'Excellent food, but fewer reviews. A secret spot!',
+        wildcard: 'Feeling lucky? A random pick to mix things up.',
+    };
+
     return (
         <motion.div
             layout
@@ -43,10 +49,37 @@ const RestaurantCard = ({ place, type, onVote, votedState }) => {
         >
             {/* Badge */}
             <div className={clsx(
-                "absolute top-4 left-4 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider z-10 shadow-md",
-                badgeColors[type]
+                "absolute top-4 left-4 flex items-center space-x-2 z-10"
             )}>
-                {badgeLabels[type]}
+                <div className={clsx(
+                    "px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider shadow-md",
+                    badgeColors[type]
+                )}>
+                    {badgeLabels[type]}
+                </div>
+            </div>
+
+            <div className="absolute top-4 right-4 flex space-x-2 z-20">
+                <button
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        onSwap();
+                    }}
+                    className="p-2 bg-white/90 backdrop-blur-sm rounded-full shadow-sm hover:bg-white hover:text-gold transition-colors text-gray-400"
+                    title="Swap this option"
+                >
+                    <RefreshCw className="w-4 h-4" />
+                </button>
+                <button
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        onBan();
+                    }}
+                    className="p-2 bg-white/90 backdrop-blur-sm rounded-full shadow-sm hover:bg-red-50 hover:text-red-500 transition-colors text-gray-400"
+                    title="Veto (Don't show again)"
+                >
+                    <Ban className="w-4 h-4" />
+                </button>
             </div>
 
             {/* Image Area */}
@@ -68,7 +101,12 @@ const RestaurantCard = ({ place, type, onVote, votedState }) => {
 
             {/* Content */}
             <div className="p-5 flex-1 flex flex-col">
-                <h3 className="text-xl font-serif font-bold text-ink mb-1">{name}</h3>
+                <div className="mb-2">
+                    <span className="text-xs font-medium text-amber-600 bg-amber-50 px-2 py-0.5 rounded-md inline-block">
+                        {badgeDescriptions[type]}
+                    </span>
+                </div>
+                <h3 className="text-xl font-serif font-bold text-ink mb-1 leading-tight">{name}</h3>
                 <p className="text-sm text-gray-500 mb-4 line-clamp-1">{vicinity}</p>
 
                 <div className="mt-auto flex items-center justify-between">
