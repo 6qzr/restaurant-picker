@@ -1,23 +1,23 @@
 import React from 'react';
-import { Clock } from 'lucide-react';
+import { MapPin } from 'lucide-react';
 
-const TimeSlider = ({ minutes, setMinutes }) => {
-    // Config: 5 mins to 60 mins
-    const min = 5;
-    const max = 60;
+const TimeSlider = ({ radiusKm, setRadiusKm }) => {
+    // Config: 1km to 50km
+    const min = 1;
+    const max = 50;
 
     // Visual fill calculation
-    const percentage = ((minutes - min) / (max - min)) * 100;
+    const percentage = ((radiusKm - min) / (max - min)) * 100;
 
     return (
         <div className="w-full max-w-sm mx-auto bg-white p-6 rounded-2xl shadow-sm border border-stone-100">
             <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center space-x-2 text-ink">
-                    <Clock className="w-5 h-5 text-gold" />
-                    <span className="font-semibold text-lg">Travel Time</span>
+                    <MapPin className="w-5 h-5 text-gold" />
+                    <span className="font-semibold text-lg">Search Radius</span>
                 </div>
                 <div className="text-2xl font-serif font-bold text-ink">
-                    {minutes} <span className="text-sm font-sans font-normal text-gray-500">mins</span>
+                    {radiusKm} <span className="text-sm font-sans font-normal text-gray-500">km</span>
                 </div>
             </div>
 
@@ -36,18 +36,13 @@ const TimeSlider = ({ minutes, setMinutes }) => {
                     type="range"
                     min={min}
                     max={max}
-                    step={5}
-                    value={minutes}
-                    onChange={(e) => setMinutes(Number(e.target.value))}
+                    step={1}
+                    value={radiusKm}
+                    onChange={(e) => setRadiusKm(Number(e.target.value))}
                     className="absolute w-full h-full opacity-0 cursor-pointer z-10"
                 />
 
-                {/* Thumb (Visual Only - centered by calculation if we wanted custom thumb, 
-            but native thumb is often better for a11y. 
-            We'll stick to native behavior with custom track for now, 
-            or use a styled div follower if requested. 
-            For simplicity and robustness, native input is used invisible on top.) 
-        */}
+                {/* Thumb */}
                 <div
                     className="absolute h-6 w-6 bg-white border-2 border-gold rounded-full shadow-md pointer-events-none transition-all duration-150 ease-out"
                     style={{
@@ -57,7 +52,7 @@ const TimeSlider = ({ minutes, setMinutes }) => {
             </div>
 
             <p className="text-xs text-center text-gray-400 mt-3">
-                Est. Radius: {((minutes * 30) / 60).toFixed(1)} km (Driving)
+                Roughly {Math.round((radiusKm / 30) * 60)} mins drive
             </p>
         </div>
     );

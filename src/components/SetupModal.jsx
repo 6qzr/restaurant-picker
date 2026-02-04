@@ -58,10 +58,14 @@ const SetupModal = ({ onComplete }) => {
                         <input
                             type="text"
                             placeholder="Paste API Key here..."
-                            className="w-full px-4 py-3 rounded-xl border border-stone-200 mb-4 focus:ring-2 focus:ring-gold focus:outline-none"
+                            className="w-full px-4 py-3 rounded-xl border border-stone-200 mb-2 focus:ring-2 focus:ring-gold focus:outline-none"
                             value={apiKey}
                             onChange={(e) => setApiKey(e.target.value)}
                         />
+
+                        <p className="text-xs text-gray-400 mb-6 text-left ml-1">
+                            Don't have one? <a href="https://developers.google.com/maps/documentation/javascript/get-api-key" target="_blank" rel="noopener noreferrer" className="text-gold hover:underline font-medium">Get a key here</a>
+                        </p>
 
                         <button
                             type="submit"
