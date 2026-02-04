@@ -1,36 +1,54 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { APIProvider, Map, useMap } from '@vis.gl/react-google-maps';
 import { motion, AnimatePresence } from 'framer-motion';
-import { RefreshCw, MapPin } from 'lucide-react';
+import { RefreshCw, MapPin, Car, Armchair } from 'lucide-react';
 
 import SetupModal from './components/SetupModal';
+import CategoryFilter from './components/CategoryFilter';
+import SlotMachine from './components/SlotMachine';
 import TimeSlider from './components/TimeSlider';
 import RestaurantCard from './components/RestaurantCard';
 import { searchNearbyPlaces } from './services/googleMaps';
 import { pickSelections } from './utils/pickerLogic';
-import { convertMinutesToRadius } from './utils/geometry';
+import { CATEGORY_MAPPINGS } from './utils/categories';
+// import { convertMinutesToRadius } from './utils/geometry'; // Not needed if we use KM directly
+
 import { savePreference, getPreferences } from './services/storage';
 import { getUsageStats, resetUsage } from './services/usageTracker';
 
 const MAX_RETRIES = 3;
 
 // Inner component to access Map instance
-const GameLogic = ({ apiKey, userLocation, maxTime, triggerSpin, onSpinComplete }) => {
+const GameLogic = ({ apiKey, userLocation, radiusKm, selectedCategories, isAdventureMode, bannedIds, triggerSpin, onSpinComplete, onResultsUpdate }) => {
     const map = useMap();
     const [allPlaces, setAllPlaces] = useState([]);
     const [isSearching, setIsSearching] = useState(false);
 
-    // Search when location or time changes (debounced ideal, but simple for now)
+    // Search when location or time or FILTERS changes (debounced ideal, but simple for now)
     useEffect(() => {
         if (!map || !userLocation || !apiKey) return;
 
-        const radius = convertMinutesToRadius(maxTime);
+        const radiusMeters = radiusKm * 1000;
+
+        // Resolve selected category IDs to actual Google Types
+        let searchTypes = [];
+        if (selectedCategories.length > 0) {
+            selectedCategories.forEach(catId => {
+                const cat = CATEGORY_MAPPINGS.find(c => c.id === catId);
+                if (cat) {
+                    searchTypes = [...searchTypes, ...cat.types];
+                }
+            });
+            // Deduplicate
+            searchTypes = [...new Set(searchTypes)];
+        }
+
         const fetchData = async () => {
             setIsSearching(true);
             try {
                 // Initialize/Move map to user location without UI 
                 // We don't render the map visible, but we need the instance
-                const results = await searchNearbyPlaces(map, userLocation, radius);
+                const results = await searchNearbyPlaces(map, userLocation, radiusMeters, searchTypes);
                 setAllPlaces(results);
             } catch (err) {
                 console.error("Search failed", err);
@@ -40,20 +58,29 @@ const GameLogic = ({ apiKey, userLocation, maxTime, triggerSpin, onSpinComplete 
         };
 
         fetchData();
-    }, [map, userLocation, maxTime, apiKey]);
+    }, [map, userLocation, radiusKm, apiKey, selectedCategories]);
+
+    // Update parent with candidates for Slot Machine effect
+    useEffect(() => {
+        if (allPlaces.length > 0) {
+            onResultsUpdate(allPlaces);
+        }
+    }, [allPlaces, onResultsUpdate]);
 
     // Handle Spin
     useEffect(() => {
-        if (triggerSpin && allPlaces.length > 0) {
-            const result = pickSelections(allPlaces);
-            // Simulate "Thinking" time for effect
+        const activePlaces = allPlaces.filter(p => !bannedIds.includes(p.place_id));
+
+        if (triggerSpin && activePlaces.length > 0) {
+            const result = pickSelections(activePlaces, userLocation, isAdventureMode);
+            // Simulate "Thinking" time for effect (Slot Machine)
             setTimeout(() => {
                 onSpinComplete(result);
-            }, 800);
-        } else if (triggerSpin && allPlaces.length === 0 && !isSearching) {
-            onSpinComplete(null); // No results
+            }, 2000); // 2 seconds for dramatic effect
+        } else if (triggerSpin && activePlaces.length === 0 && !isSearching) {
+            onSpinComplete(null);
         }
-    }, [triggerSpin, allPlaces, isSearching, onSpinComplete]);
+    }, [triggerSpin, allPlaces, isSearching, onSpinComplete, bannedIds]); // Note: Depend on allPlaces, but filtering happens inside
 
     return null; // Logic only, no UI
 };
@@ -61,13 +88,18 @@ const GameLogic = ({ apiKey, userLocation, maxTime, triggerSpin, onSpinComplete 
 const App = () => {
     const [apiKey, setApiKey] = useState(localStorage.getItem('restaurant_picker_api_key') || '');
     const [userLocation, setUserLocation] = useState(null);
-    const [maxTime, setMaxTime] = useState(15); // Default 15 mins
+    const [radiusKm, setRadiusKm] = useState(5); // Default 5 km
+    const [selectedFilters, setSelectedFilters] = useState([]); // Category IDs
+    const [isAdventureMode, setIsAdventureMode] = useState(false); // New Adventure State
     const [spinTrigger, setSpinTrigger] = useState(0);
     const [isSpinning, setIsSpinning] = useState(false);
     const [selections, setSelections] = useState(null);
+    const [pools, setPools] = useState(null); // New state for swapping
     const [preferences, setPreferences] = useState(getPreferences());
     const [error, setError] = useState('');
     const [usage, setUsage] = useState(getUsageStats()); // New State
+    const [bannedIds, setBannedIds] = useState([]); // Session Bans
+    const [candidatePlaces, setCandidatePlaces] = useState([]); // For Slot Machine visual
 
     // Setup Handler
     const handleSetupComplete = (key) => {
@@ -95,6 +127,7 @@ const App = () => {
     const handleSpin = () => {
         setIsSpinning(true);
         setSelections(null); // clear old
+        setPools(null);
         setSpinTrigger(prev => prev + 1);
     };
 
@@ -105,12 +138,81 @@ const App = () => {
         setIsSpinning(false);
         setUsage(getUsageStats()); // Update stats
         if (!result) {
-            setError("No acceptable restaurants found nearby. Try increasing the time radius!");
+            setError("No acceptable restaurants found nearby. Try increasing the search radius!");
         } else {
-            setSelections(result);
+            // Fix: result now contains { selections, pools }
+            setSelections(result.selections);
+            setPools(result.pools);
             setError('');
         }
     }, []);
+
+    const handleSwap = (type) => {
+        if (!pools || !pools[type] || pools[type].length === 0) return;
+
+        // Get current selection
+        const current = selections[type];
+
+        // Find next candidate in pool that isn't currently selected in ANY slot
+        const usedIds = [
+            selections.bestRated?.place_id,
+            selections.hiddenGem?.place_id,
+            selections.wildcard?.place_id
+        ].filter(Boolean);
+
+        const candidates = pools[type].filter(p => !usedIds.includes(p.place_id) && !bannedIds.includes(p.place_id));
+
+        if (candidates.length > 0) {
+            // Pick random next one or just the next one? Random is fun.
+            // But let's just rotate through for stability if they keep clicking.
+            // Actually, let's just pick index 0 of the candidates.
+            const next = candidates[0];
+
+            setSelections(prev => ({
+                ...prev,
+                [type]: next
+            }));
+        } else {
+            // Shake effect or toast? No candidates left.
+            console.log("No more swap candidates for", type);
+        }
+    };
+
+    const handleBan = (placeId, type) => {
+        setBannedIds(prev => [...prev, placeId]);
+        // Immediately swap out the banned card
+        // We need to wait for state update? No, handleSwap reads from 'pools' which is stable, 
+        // but it checks bannedIds which is state. 
+        // We can pass the new banned list or just use a timeout/effect?
+        // Simpler: Just force a swap but ensure the swap logic sees the new ban.
+        // Actually, let's update local banned list for the swap call directly OR 
+        // since setState is async, we might swap to the same one if we aren't careful.
+
+        // Better: We update the state, AND we manually find the next one here to setSelection immediately.
+
+        // 1. Add to ban list
+        const newBanned = [...bannedIds, placeId];
+        setBannedIds(newBanned);
+
+        // 2. Perform Swap using the NEW ban list
+        if (!pools || !pools[type]) return;
+
+        const usedIds = [
+            selections.bestRated?.place_id,
+            selections.hiddenGem?.place_id,
+            selections.wildcard?.place_id
+        ].filter(Boolean);
+
+        const candidates = pools[type].filter(p => !usedIds.includes(p.place_id) && !newBanned.includes(p.place_id));
+
+        if (candidates.length > 0) {
+            const next = candidates[0];
+            setSelections(prev => ({ ...prev, [type]: next }));
+        } else {
+            // No replacements
+            setSelections(prev => ({ ...prev, [type]: null }));
+        }
+    };
 
     const handleVote = (place, value) => {
         // Save preference
@@ -130,12 +232,21 @@ const App = () => {
     };
 
 
+    const LIBRARIES = ['places'];
+
+    const toggleFilter = (id) => {
+        setSelectedFilters(prev => {
+            if (prev.includes(id)) return prev.filter(x => x !== id);
+            return [...prev, id];
+        });
+    };
+
     return (
         <div className="min-h-screen bg-paper text-ink p-4 md:p-8 font-sans overflow-x-hidden">
             {!apiKey || !userLocation ? (
                 <SetupModal onComplete={handleSetupComplete} />
             ) : (
-                <APIProvider apiKey={apiKey}>
+                <APIProvider apiKey={apiKey} libraries={LIBRARIES}>
                     {/* Invisible Map for Service Access */}
                     <div style={{ display: 'none' }}>
                         <Map center={userLocation} zoom={15} />
@@ -144,9 +255,13 @@ const App = () => {
                     <GameLogic
                         apiKey={apiKey}
                         userLocation={userLocation}
-                        maxTime={maxTime}
+                        radiusKm={radiusKm}
+                        selectedCategories={selectedFilters}
+                        isAdventureMode={isAdventureMode}
+                        bannedIds={bannedIds}
                         triggerSpin={spinTrigger}
                         onSpinComplete={handleSpinComplete}
+                        onResultsUpdate={setCandidatePlaces}
                     />
 
                     <header className="max-w-4xl mx-auto flex items-center justify-between mb-8">
@@ -174,8 +289,32 @@ const App = () => {
 
                     <main className="max-w-6xl mx-auto">
                         {/* Controls */}
-                        <div className="mb-12 flex flex-col md:flex-row items-center justify-center space-y-6 md:space-y-0 md:space-x-8">
-                            <TimeSlider minutes={maxTime} setMinutes={setMaxTime} />
+                        <div className="mb-8 flex flex-col items-center space-y-6">
+
+                            <div className="w-full max-w-2xl px-4 flex flex-col items-center">
+                                <TimeSlider radiusKm={radiusKm} setRadiusKm={setRadiusKm} />
+
+                                {/* Adventure Toggle */}
+                                <button
+                                    onClick={() => {
+                                        setIsAdventureMode(prev => !prev);
+                                        if (selections) handleSpin();
+                                    }}
+                                    className={`mt-4 flex items-center space-x-2 px-4 py-2 rounded-full border transition-colors duration-300 ${isAdventureMode ? 'bg-amber-100 border-amber-300 text-amber-800' : 'bg-white border-gray-200 text-gray-500 hover:border-gray-300'}`}
+                                >
+                                    {isAdventureMode ? <Car className="w-5 h-5" /> : <Armchair className="w-5 h-5" />}
+                                    <span className="text-sm font-medium">
+                                        {isAdventureMode ? "Adventure Mode: ON (Go Far)" : "Standard Mode (Stay Close)"}
+                                    </span>
+                                </button>
+                            </div>
+
+                            <div className="w-full max-w-3xl">
+                                <CategoryFilter
+                                    selectedCategories={selectedFilters}
+                                    onToggle={toggleFilter}
+                                />
+                            </div>
 
                             <button
                                 onClick={handleSpin}
@@ -183,7 +322,9 @@ const App = () => {
                                 className={`btn-timeless h-16 w-16 md:w-auto md:px-8 flex items-center justify-center space-x-2 ${isSpinning ? 'animate-pulse' : ''}`}
                             >
                                 <RefreshCw className={`w-6 h-6 ${isSpinning ? 'animate-spin-slow' : ''}`} />
-                                <span className="hidden md:inline">Spin Again</span>
+                                <span className="hidden md:inline">
+                                    {spinTrigger === 0 ? "Spin" : "Spin Again"}
+                                </span>
                             </button>
                         </div>
 
@@ -195,49 +336,60 @@ const App = () => {
                         )}
 
                         {/* Cards Grid */}
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8 min-h-[400px]">
+                        <div className="w-full min-h-[400px]">
                             <AnimatePresence mode="wait">
                                 {isSpinning ? (
                                     // Loading Skeletons or Empty State
-                                    <motion.div
-                                        key="loading"
-                                        initial={{ opacity: 0 }}
-                                        animate={{ opacity: 1 }}
-                                        exit={{ opacity: 0 }}
-                                        className="col-span-3 flex items-center justify-center h-64"
-                                    >
-                                        <div className="flex flex-col items-center space-y-4">
-                                            <div className="w-12 h-12 border-4 border-gold border-t-transparent rounded-full animate-spin"></div>
-                                            <p className="text-gray-500 font-serif italic text-lg">Consulting the culinary gods...</p>
-                                        </div>
-                                    </motion.div>
-                                ) : selections ? (
-                                    <>
-                                        <RestaurantCard
-                                            key={selections.bestRated.place_id}
-                                            place={selections.bestRated}
-                                            type="bestRated"
-                                            onVote={onVoteUI}
-                                            votedState={sessionVotes[selections.bestRated.place_id]}
-                                        />
-                                        <RestaurantCard
-                                            key={selections.hiddenGem.place_id}
-                                            place={selections.hiddenGem}
-                                            type="hiddenGem"
-                                            onVote={onVoteUI}
-                                            votedState={sessionVotes[selections.hiddenGem.place_id]}
-                                        />
-                                        <RestaurantCard
-                                            key={selections.wildcard ? selections.wildcard.place_id : 'none'}
-                                            place={selections.wildcard}
-                                            type="wildcard"
-                                            onVote={onVoteUI}
-                                            votedState={selections.wildcard ? sessionVotes[selections.wildcard.place_id] : 0}
-                                        />
-                                    </>
-                                ) : !error && (
-                                    <div className="col-span-3 flex items-center justify-center h-64 text-gray-400">
-                                        Ready to choose? Hit the spin button.
+                                    <SlotMachine candidates={candidatePlaces} />
+                                ) : (
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                                        <AnimatePresence mode="wait">
+                                            {isSpinning ? (
+                                                <SlotMachine candidates={candidatePlaces} />
+                                            ) : (
+                                                <>
+                                                    {selections?.bestRated && (
+                                                        <RestaurantCard
+                                                            key="best"
+                                                            place={selections.bestRated}
+                                                            type="Best Rated"
+                                                            description="The local favorite. High ratings and plenty of reviews."
+                                                            onVote={onVoteUI}
+                                                            userVote={sessionVotes[selections.bestRated.place_id]}
+                                                            userLocation={userLocation}
+                                                            onSwap={() => handleSwap('bestRated')}
+                                                            onBan={() => handleBan(selections.bestRated.place_id, 'bestRated')}
+                                                        />
+                                                    )}
+                                                    {selections?.hiddenGem && (
+                                                        <RestaurantCard
+                                                            key="hidden"
+                                                            place={selections.hiddenGem}
+                                                            type="Hidden Gem"
+                                                            description="Great ratings but under the radar. A discovery waiting to happen."
+                                                            onVote={onVoteUI}
+                                                            userVote={sessionVotes[selections.hiddenGem.place_id]}
+                                                            userLocation={userLocation}
+                                                            onSwap={() => handleSwap('hiddenGem')}
+                                                            onBan={() => handleBan(selections.hiddenGem.place_id, 'hiddenGem')}
+                                                        />
+                                                    )}
+                                                    {selections?.wildcard && (
+                                                        <RestaurantCard
+                                                            key="wild"
+                                                            place={selections.wildcard}
+                                                            type="Wildcard"
+                                                            description="Something different. Shake up your routine!"
+                                                            onVote={onVoteUI}
+                                                            userVote={sessionVotes[selections.wildcard.place_id]}
+                                                            userLocation={userLocation}
+                                                            onSwap={() => handleSwap('wildcard')}
+                                                            onBan={() => handleBan(selections.wildcard.place_id, 'wildcard')}
+                                                        />
+                                                    )}
+                                                </>
+                                            )}
+                                        </AnimatePresence>
                                     </div>
                                 )}
                             </AnimatePresence>
