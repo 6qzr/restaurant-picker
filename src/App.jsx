@@ -101,19 +101,17 @@ const App = () => {
     const [bannedIds, setBannedIds] = useState([]); // Session Bans
     const [candidatePlaces, setCandidatePlaces] = useState([]); // For Slot Machine visual
 
-    // Setup Handler
-    const handleSetupComplete = (key) => {
-        setApiKey(key);
-        localStorage.setItem('restaurant_picker_api_key', key);
-
-        // Get Location
+    // Geolocation Helper
+    const requestLocation = useCallback(() => {
         if (navigator.geolocation) {
             navigator.geolocation.getCurrentPosition(
                 (position) => {
-                    setUserLocation({
+                    const loc = {
                         lat: position.coords.latitude,
                         lng: position.coords.longitude
-                    });
+                    };
+                    setUserLocation(loc);
+                    sessionStorage.setItem('last_location', JSON.stringify(loc));
                 },
                 (err) => {
                     setError("Location permission denied. We need it to find food!");
@@ -122,6 +120,27 @@ const App = () => {
         } else {
             setError("Geolocation not supported by this browser.");
         }
+    }, []);
+
+    // Auto-login / Auto-location
+    useEffect(() => {
+        // Try to restore location from session first (instant)
+        const cached = sessionStorage.getItem('last_location');
+        if (cached && !userLocation) {
+            setUserLocation(JSON.parse(cached));
+        }
+
+        // If we have a key but no location, ask for it automatically
+        if (apiKey && !userLocation && !cached) {
+            requestLocation();
+        }
+    }, [apiKey, userLocation, requestLocation]);
+
+    // Setup Handler
+    const handleSetupComplete = (key) => {
+        setApiKey(key);
+        localStorage.setItem('restaurant_picker_api_key', key);
+        requestLocation();
     };
 
     const handleSpin = () => {
@@ -243,8 +262,28 @@ const App = () => {
 
     return (
         <div className="min-h-screen bg-paper text-ink p-4 md:p-8 font-sans overflow-x-hidden">
-            {!apiKey || !userLocation ? (
+            {!apiKey ? (
                 <SetupModal onComplete={handleSetupComplete} />
+            ) : !userLocation ? (
+                /* Locating Splash */
+                <div className="fixed inset-0 flex flex-col items-center justify-center bg-paper z-50">
+                    <div className="w-16 h-16 bg-ink text-white p-3 rounded-2xl mb-6 shadow-xl animate-bounce">
+                        <MapPin className="w-full h-full" />
+                    </div>
+                    <h2 className="text-2xl font-serif font-bold mb-2">Locating you...</h2>
+                    <p className="text-stone-400 italic">Chef's Choice is finding your current position.</p>
+                    {error && (
+                        <div className="mt-8 p-4 bg-red-50 text-red-600 rounded-xl border border-red-100 max-w-sm text-center">
+                            {error}
+                            <button
+                                onClick={() => requestLocation()}
+                                className="block w-full mt-2 text-sm font-bold underline"
+                            >
+                                Try Again
+                            </button>
+                        </div>
+                    )}
+                </div>
             ) : (
                 <APIProvider apiKey={apiKey} libraries={LIBRARIES}>
                     {/* Invisible Map for Service Access */}
