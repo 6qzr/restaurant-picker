@@ -10,6 +10,7 @@ import { searchNearbyPlaces } from './services/googleMaps';
 import { pickSelections } from './utils/pickerLogic';
 import { convertMinutesToRadius } from './utils/geometry';
 import { savePreference, getPreferences } from './services/storage';
+import { getUsageStats, resetUsage } from './services/usageTracker';
 
 const MAX_RETRIES = 3;
 
@@ -66,6 +67,7 @@ const App = () => {
     const [selections, setSelections] = useState(null);
     const [preferences, setPreferences] = useState(getPreferences());
     const [error, setError] = useState('');
+    const [usage, setUsage] = useState(getUsageStats()); // New State
 
     // Setup Handler
     const handleSetupComplete = (key) => {
@@ -96,8 +98,12 @@ const App = () => {
         setSpinTrigger(prev => prev + 1);
     };
 
+    // Update usage when spinning (since that's when we fetch/track)
+    // Actually, the GameLogic does the fetch, so we should sync usage there or poll it?
+    // Simplest is to check it after spin complete.
     const handleSpinComplete = useCallback((result) => {
         setIsSpinning(false);
+        setUsage(getUsageStats()); // Update stats
         if (!result) {
             setError("No acceptable restaurants found nearby. Try increasing the time radius!");
         } else {
@@ -149,6 +155,20 @@ const App = () => {
                                 <MapPin className="w-6 h-6" />
                             </div>
                             <h1 className="text-2xl font-serif font-bold">Chef's Choice</h1>
+                        </div>
+
+                        {/* Usage Tracker */}
+                        <div className="bg-white px-4 py-2 rounded-full shadow-sm border border-stone-100 flex items-center space-x-3 text-xs md:text-sm cursor-help" title="Estimated cost against free tier">
+                            <div className="flex flex-col items-end">
+                                <span className="font-bold text-ink">${usage.cost.toFixed(2)} / $200</span>
+                                <span className="text-gray-400">{usage.calls} calls</span>
+                            </div>
+                            <div className="w-8 h-8 relative">
+                                <svg className="w-full h-full transform -rotate-90">
+                                    <circle cx="16" cy="16" r="14" stroke="#e5e7eb" strokeWidth="3" fill="none" />
+                                    <circle cx="16" cy="16" r="14" stroke={usage.percentUsed > 80 ? '#ef4444' : '#22c55e'} strokeWidth="3" fill="none" strokeDasharray="88" strokeDashoffset={88 - (88 * usage.percentUsed) / 100} />
+                                </svg>
+                            </div>
                         </div>
                     </header>
 

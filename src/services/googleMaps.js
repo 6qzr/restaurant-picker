@@ -1,3 +1,5 @@
+import { trackApiCall } from './usageTracker';
+
 export const GOOGLE_MAPS_LIBRARIES = ['places', 'geometry'];
 
 export const checkMapsLoaded = () => {
@@ -17,6 +19,9 @@ export const searchNearbyPlaces = async (mapInstance, center, radiusMeters) => {
         radius: radiusMeters,
         type: ['restaurant', 'cafe', 'bakery', 'meal_takeaway'],
     };
+
+    // Track it!
+    trackApiCall();
 
     return new Promise((resolve, reject) => {
         service.nearbySearch(request, (results, status) => {
