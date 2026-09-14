@@ -117,3 +117,4 @@ dist
 
 # Live-sweep fixture is regenerable and large
 test/fixtures/*.json
+dev-dist/
