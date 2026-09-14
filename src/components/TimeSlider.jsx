@@ -1,4 +1,4 @@
-import React from 'react';
+
 import { MapPin } from 'lucide-react';
 
 const TimeSlider = ({ radiusKm, setRadiusKm }) => {

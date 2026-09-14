@@ -21,7 +21,7 @@ export const getUsageStats = () => {
             percentUsed: (stats.cost / FREE_TIER_CREDIT) * 100,
             remainingCalls: Math.floor((FREE_TIER_CREDIT - stats.cost) / COST_PER_CALL)
         };
-    } catch (e) {
+    } catch {
         return { calls: 0, cost: 0, limit: 200, percentUsed: 0 };
     }
 };

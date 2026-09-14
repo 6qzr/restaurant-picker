@@ -68,8 +68,17 @@ export const pickSelections = (places, userLocation, isAdventureMode = false) =>
         };
     });
 
-    // Helper to shuffle array
-    const shuffle = (array) => array.sort(() => Math.random() - 0.5);
+    // Pure Fisher-Yates. The old `array.sort(() => Math.random() - 0.5)` was both
+    // statistically biased AND mutated in place -- which corrupted `pools.wildcard`,
+    // since it was the same array reference being returned to the caller.
+    const shuffle = (array) => {
+        const a = [...array];
+        for (let i = a.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [a[i], a[j]] = [a[j], a[i]];
+        }
+        return a;
+    };
 
     // --- SELECTION 1: BEST RATED (The "Trusty" Choice) ---
     // Strictly sort by our new robust effectiveRating

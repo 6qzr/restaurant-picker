@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { MapPin, Key } from 'lucide-react';
 
 const SetupModal = ({ onComplete }) => {
@@ -34,13 +34,13 @@ const SetupModal = ({ onComplete }) => {
                         </div>
                         <h2 className="text-2xl font-serif font-bold text-ink mb-3">Restaurant Picker</h2>
                         <p className="text-gray-500 mb-8">
-                            Find the best places to eat around you. We'll need your location to find hidden gems nearby.
+                            Find the best places to eat around you. We&rsquo;ll need your location to find hidden gems nearby.
                         </p>
                         <button
                             onClick={handleStart}
                             className="btn-timeless w-full"
                         >
-                            Let's Eat
+                            Let&rsquo;s Eat
                         </button>
                     </>
                 )}
@@ -64,7 +64,7 @@ const SetupModal = ({ onComplete }) => {
                         />
 
                         <p className="text-xs text-gray-400 mb-6 text-left ml-1">
-                            Don't have one? <a href="https://developers.google.com/maps/documentation/javascript/get-api-key" target="_blank" rel="noopener noreferrer" className="text-gold hover:underline font-medium">Get a key here</a>
+                            Don&rsquo;t have one? <a href="https://developers.google.com/maps/documentation/javascript/get-api-key" target="_blank" rel="noopener noreferrer" className="text-gold hover:underline font-medium">Get a key here</a>
                         </p>
 
                         <button

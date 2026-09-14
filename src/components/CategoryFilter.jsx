@@ -1,4 +1,4 @@
-import React from 'react';
+
 import { clsx } from 'clsx';
 import { CATEGORY_MAPPINGS } from '../utils/categories';
 
