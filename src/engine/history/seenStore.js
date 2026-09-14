@@ -37,10 +37,13 @@ export const recordShown = async (ids, now = Date.now()) => {
     await tx.done;
 };
 
-export const recordVeto = async (id, now = Date.now()) => {
+/** The name is stored alongside the veto purely so Settings can show a
+ *  readable "restore" list rather than a column of OSM ids. */
+export const recordVeto = async (id, name, now = Date.now()) => {
     const db = await getDB();
     const prev = (await db.get(STORES.seen, id)) ?? { id, shows: [] };
     prev.vetoedAt = now;
+    if (name) prev.name = name;
     await db.put(STORES.seen, prev);
 };
 

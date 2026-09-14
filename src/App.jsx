@@ -17,12 +17,14 @@ import { SEARCH } from './config.js';
 import SetupFlow from './components/SetupFlow.jsx';
 import Board from './components/Board.jsx';
 import ShareSheet from './components/ShareSheet.jsx';
+import SettingsSheet from './components/SettingsSheet.jsx';
 import { TopBar, BottomBar } from './components/Chrome.jsx';
 import { RadiusDial, SurpriseDial, ModeToggle, CuisineChips } from './components/Controls.jsx';
 
 const App = () => {
     const [setupDone, setSetupDone] = useState(() => localStorage.getItem('cc_setup') === '1');
     const [shareOpen, setShareOpen] = useState(false);
+    const [settingsOpen, setSettingsOpen] = useState(false);
     const [offline, setOffline] = useState(!navigator.onLine);
     const [votes, setVotes] = useState({});
 
@@ -133,7 +135,7 @@ const App = () => {
                 poolSize={s.pool.length}
                 sweepPhase={s.sweepPhase}
                 offline={offline}
-                onOpenSettings={() => setShareOpen(true)}
+                onOpenSettings={() => setSettingsOpen(true)}
             />
 
             <main className="flex-1 w-full max-w-5xl mx-auto px-4 pt-4 pb-6 flex flex-col gap-5">
@@ -210,6 +212,16 @@ const App = () => {
                 onCastVote={s.castVote}
                 onReveal={s.reveal}
                 onResetVoting={s.resetVoting}
+            />
+
+            <SettingsSheet
+                open={settingsOpen}
+                onClose={() => setSettingsOpen(false)}
+                reduced={reducedMotion}
+                apiKey={s.apiKey}
+                showRatings={s.showRatings}
+                onShowRatings={s.setShowRatings}
+                onSetKey={s.setApiKey}
             />
 
             <footer className="px-4 pb-4 text-center">

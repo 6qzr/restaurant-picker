@@ -44,7 +44,7 @@ export const useBoard = () => {
         const s = store.getState();
         const slot = s.board?.slots.find((sl) => sl.lane === laneId);
         if (!slot?.place) return;
-        await recordVeto(slot.place.id);
+        await recordVeto(slot.place.id, slot.place.name);
         s.swap(laneId);
         store.getState().setSeen(await loadAllSeen());
         const after = store.getState().board;
