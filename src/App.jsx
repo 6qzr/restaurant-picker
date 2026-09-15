@@ -292,7 +292,6 @@ const App = () => {
                 showRatings={s.showRatings}
                 onShowRatings={s.setShowRatings}
                 onSetKey={s.setApiKey}
-                onOpenGuide={() => { setSettingsOpen(false); setGuideOpen(true); }}
             />
 
             <HowItWorks
