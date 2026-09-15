@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { memo, useCallback, useRef, useState } from 'react';
 import { motion, useMotionValue, useTransform, animate } from 'framer-motion';
 import { X } from 'lucide-react';
 import { useDrag } from '../hooks/useDrag.js';
@@ -19,7 +19,7 @@ import PlaceCard from './PlaceCard.jsx';
  *    dragging and animating
  *  - grabbing a card mid-flight stops it and re-grabs at its live position
  */
-export const SwipeableCard = ({ slot, enrichment, reduced, onVeto, ...cardProps }) => {
+const SwipeableCardBase = ({ slot, enrichment, reduced, onVeto, onSwap, ...cardProps }) => {
     const x = useMotionValue(0);
     const [dragging, setDragging] = useState(false);
     const widthRef = useRef(1);
@@ -35,6 +35,12 @@ export const SwipeableCard = ({ slot, enrichment, reduced, onVeto, ...cardProps 
         const p = Math.min(1, Math.abs(v) / (widthRef.current * 0.5 || 1));
         return 0.94 + 0.06 * p;
     });
+
+    // Bound here rather than by an arrow in Board's JSX: a fresh closure per
+    // render would defeat the memo below, and the whole point of the memo is
+    // that the two cards you did not touch stop re-rendering mid-animation.
+    const vetoThis = useCallback(() => onVeto?.(slot.lane), [onVeto, slot.lane]);
+    const swapThis = useCallback(() => onSwap?.(slot.lane), [onSwap, slot.lane]);
 
     const handleStart = useCallback(({ width }) => {
         widthRef.current = width;
@@ -70,13 +76,13 @@ export const SwipeableCard = ({ slot, enrichment, reduced, onVeto, ...cardProps 
             haptic(12);
             const dir = Math.sign(projected) || 1;
             animate(x, dir * window.innerWidth * 1.1, { ...S.momentum, velocity: vx });
-            onVeto?.();
+            vetoThis();
             // Reset behind the replacement, which mounts at the same position.
             setTimeout(() => x.set(0), reduced ? 160 : 260);
         } else {
             animate(x, 0, { ...S.momentum, velocity: vx });
         }
-    }, [x, S, haptic, onVeto, reduced]);
+    }, [x, S, haptic, vetoThis, reduced]);
 
     const drag = useDrag({ onStart: handleStart, onMove: handleMove, onEnd: handleEnd });
 
@@ -111,10 +117,22 @@ export const SwipeableCard = ({ slot, enrichment, reduced, onVeto, ...cardProps 
                     </span>
                 </motion.div>
 
-                <PlaceCard slot={slot} enrichment={enrichment} dragging={dragging} onVeto={onVeto} {...cardProps} />
+                <PlaceCard
+                    slot={slot}
+                    enrichment={enrichment}
+                    dragging={dragging}
+                    onVeto={vetoThis}
+                    onSwap={swapThis}
+                    {...cardProps}
+                />
             </motion.div>
         </div>
     );
 };
+
+/** The board re-renders whenever anything in the store moves -- a sweep batch,
+ *  an enrichment landing, a seen-history reload after a veto. Without this,
+ *  each of those re-rendered all three cards while one of them was mid-flight. */
+export const SwipeableCard = memo(SwipeableCardBase);
 
 export default SwipeableCard;
