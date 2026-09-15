@@ -84,17 +84,23 @@ export const ModeToggle = ({ adventure, onChange }) => (
     </button>
 );
 
-export const CuisineChips = ({ chips, onToggle }) => (
+export const CuisineChips = ({ chips, onToggle, counts = {} }) => (
     <div className="flex gap-2 overflow-x-auto no-scrollbar py-0.5 -mx-1 px-1">
         {CUISINE_CHIPS.map((c) => {
             const on = chips.includes(c.id);
+            const n = counts[c.id];
+            // A chip with nothing behind it empties the board, which reads as a
+            // fault rather than as a filter. Show the count and refuse the tap.
+            const empty = n === 0;
             return (
                 <button
                     key={c.id}
                     type="button"
-                    onClick={() => onToggle(c.id)}
+                    onClick={() => !empty && onToggle(c.id)}
+                    disabled={empty}
                     aria-pressed={on}
-                    className="btn shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 text-sm border"
+                    title={empty ? `No ${c.label.toLowerCase()} places found nearby` : undefined}
+                    className="btn shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 text-sm border disabled:opacity-40 disabled:cursor-not-allowed"
                     style={{
                         borderColor: on ? 'var(--ink)' : 'var(--line)',
                         background: on ? 'var(--ink)' : 'var(--surface)',
@@ -103,6 +109,9 @@ export const CuisineChips = ({ chips, onToggle }) => (
                 >
                     <span aria-hidden="true">{c.icon}</span>
                     {c.label}
+                    {n != null && (
+                        <Num className="tabular-nums opacity-55">{n}</Num>
+                    )}
                 </button>
             );
         })}

@@ -12,6 +12,7 @@ import {
 import { coveringTiles, tileSizeKm, tileBBox, latToTileY, lonToTileX } from '../src/engine/discovery/tiles.js';
 import { quality, proximity } from '../src/engine/rank/score.js';
 import { mapsUrlFor, directionsUrlFor } from '../src/utils/format.js';
+import { chipCounts, matchesChips, CUISINE_CHIPS } from '../src/utils/cuisine.js';
 
 const DAY = 86400000;
 
@@ -588,5 +589,45 @@ describe('api key sanitising', () => {
 
     it('does not disguise a genuinely truncated key', () => {
         expect(inspectKeyShape(GOOD.slice(0, 35)).reason).toBe('length');
+    });
+});
+
+describe('filter counts', () => {
+    const place = (id, cuisines, category = 'restaurant') => ({
+        id, name: id, cuisines, category, lat: 23.5, lon: 58.4, tags: {},
+    });
+    const pool = [
+        place('a', ['pizza']),
+        place('b', ['pizza']),
+        place('c', ['coffee'], 'cafe'),
+        place('d', ['indian']),
+    ];
+
+    it('reports how many places each chip actually reaches', () => {
+        const counts = chipCounts(pool);
+        expect(counts.pizza).toBe(2);
+        expect(counts.indian).toBe(1);
+    });
+
+    /** The reported symptom: the header showed the unfiltered total, so with a
+     *  narrow chip on it promised far more variety than the board could draw
+     *  from -- which reads as the picker being broken rather than narrowed. */
+    it('counts only what the filter leaves selectable', () => {
+        const selectable = pool.filter((p) => matchesChips(p, ['pizza'])).length;
+        expect(selectable).toBe(2);
+        expect(selectable).toBeLessThan(pool.length);
+    });
+
+    it('reports zero for a chip nothing matches, so it can be disabled', () => {
+        expect(chipCounts(pool).seafood).toBe(0);
+    });
+
+    it('gives every chip a count, so none renders blank', () => {
+        const counts = chipCounts(pool);
+        for (const chip of CUISINE_CHIPS) expect(typeof counts[chip.id]).toBe('number');
+    });
+
+    it('treats no chips as the whole pool', () => {
+        expect(pool.filter((p) => matchesChips(p, [])).length).toBe(pool.length);
     });
 });

@@ -8,7 +8,11 @@ import { Num } from './primitives/Bidi.jsx';
  *  changed three times a day and was measured against a free tier that no
  *  longer exists. How many places the app can actually choose between is the
  *  number that matters here. */
-export const TopBar = ({ poolSize, sweepPhase, offline, onOpenSettings }) => (
+/** `poolSize` is what the user can actually be shown right now -- i.e. after
+ *  their filters. Showing the unfiltered total was actively misleading: with
+ *  the Pizza chip on, the header read "567 places" while the board was choosing
+ *  between 15, which is why the variety looked broken rather than narrowed. */
+export const TopBar = ({ poolSize, totalSize, sweepPhase, offline, onOpenSettings }) => (
     <header
         className="chrome sticky top-0 z-30 flex items-center justify-between gap-3 px-4 py-3"
         style={{ paddingTop: 'max(0.75rem, env(safe-area-inset-top))' }}
@@ -28,10 +32,25 @@ export const TopBar = ({ poolSize, sweepPhase, offline, onOpenSettings }) => (
                     <WifiOff className="w-3 h-3" /> Offline
                 </span>
             )}
-            <span className="meta inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full"
-                style={{ background: 'var(--surface-2)', color: 'var(--ink-2)' }}>
+            <span
+                className="meta inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full"
+                style={{ background: 'var(--surface-2)', color: 'var(--ink-2)' }}
+                title={
+                    totalSize != null && totalSize !== poolSize
+                        ? `${poolSize} of ${totalSize} places match your filters`
+                        : undefined
+                }
+            >
                 {sweepPhase === 'sweeping' && <Loader2 className="w-3 h-3 animate-spin" />}
-                <Num>{poolSize}</Num> places
+                {totalSize != null && totalSize !== poolSize ? (
+                    <>
+                        <Num>{poolSize}</Num> of <Num>{totalSize}</Num>
+                    </>
+                ) : (
+                    <>
+                        <Num>{poolSize}</Num> places
+                    </>
+                )}
             </span>
             <button type="button" onClick={onOpenSettings} aria-label="Settings"
                 className="btn grid place-items-center w-8 h-8" style={{ color: 'var(--ink-3)' }}>
