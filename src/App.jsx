@@ -170,8 +170,28 @@ const App = () => {
                                 <>
                                     <Loader2 className="w-6 h-6 mx-auto mb-3 animate-spin" style={{ color: 'var(--ink-3)' }} />
                                     <p className="text-sm" style={{ color: 'var(--ink-2)' }}>
-                                        Mapping every place around you&hellip;
+                                        Mapping the area around you&hellip;
                                     </p>
+                                    {/* Real progress, because a single static line
+                                        is indistinguishable from a hang. */}
+                                    <p className="text-xs mt-2 tabular-nums" style={{ color: 'var(--ink-3)' }}>
+                                        {s.sweepProgress.fetched} of {s.sweepProgress.toFetch} areas
+                                        {s.pool.length > 0 && ` · ${s.pool.length} places so far`}
+                                    </p>
+                                    <p className="text-xs mt-3" style={{ color: 'var(--ink-3)' }}>
+                                        This happens once per area. After that it loads instantly,
+                                        even offline.
+                                    </p>
+                                    {s.radiusKm > 3 && (
+                                        <button
+                                            type="button"
+                                            onClick={() => s.setRadius(2)}
+                                            className="btn mt-4 px-4 py-2 text-xs border"
+                                            style={{ borderColor: 'var(--line)', color: 'var(--ink-2)' }}
+                                        >
+                                            Search a smaller area instead
+                                        </button>
+                                    )}
                                 </>
                             ) : (
                                 <p className="text-sm" style={{ color: 'var(--ink-2)' }}>
