@@ -6,7 +6,7 @@ import { pickNext, similarity } from '../src/engine/rank/mmr.js';
 import { encodeBoard, decodeBoard } from '../src/share/codec.js';
 import { normalizeElement } from '../src/engine/discovery/osmNormalize.js';
 import { scoreMatch, normalizeName, diceSimilarity } from '../src/engine/enrich/matcher.js';
-import { classifyError, QuotaError } from '../src/engine/enrich/googlePlaces.js';
+import { classifyError, QuotaError, inspectKeyShape } from '../src/engine/enrich/googlePlaces.js';
 import { coveringTiles, tileSizeKm, tileBBox, latToTileY, lonToTileX } from '../src/engine/discovery/tiles.js';
 import { quality, proximity } from '../src/engine/rank/score.js';
 import { mapsUrlFor, directionsUrlFor } from '../src/utils/format.js';
@@ -418,5 +418,40 @@ describe('maps links', () => {
     it('percent-encodes Arabic names when a listing exists', () => {
         expect(mapsUrlFor(arabic, { googlePlaceId: 'ChIJx' })).toContain('%D9%85');
         expect(directionsUrlFor(arabic, { googlePlaceId: 'ChIJx' })).toContain('%D9%85');
+    });
+});
+
+describe('api key shape', () => {
+    const GOOD = 'AIza' + 'b'.repeat(35);
+
+    it('accepts a well-formed key', () => {
+        expect(inspectKeyShape(GOOD)).toEqual({ ok: true, length: 39 });
+    });
+
+    /** The failure that actually bit in production: a key that looks right but
+     *  was cut short on paste produces an opaque "not valid" from Google. */
+    it('catches a truncated paste and says how short it is', () => {
+        const r = inspectKeyShape(GOOD.slice(0, 35));
+        expect(r.ok).toBe(false);
+        expect(r.reason).toBe('length');
+        expect(r.length).toBe(35);
+    });
+
+    it('catches a key a mobile keyboard has autocorrected', () => {
+        // en-dash substituted for the hyphen
+        expect(inspectKeyShape('AIza–' + 'b'.repeat(34)).reason).toBe('charset');
+    });
+
+    it.each([
+        ['empty', '', 'empty'],
+        ['not a Google key', 'my-api-key', 'prefix'],
+        ['contains a line break', `AIza${'b'.repeat(31)}
+bbbb`, 'whitespace'],
+    ])('rejects %s', (_label, key, reason) => {
+        expect(inspectKeyShape(key).reason).toBe(reason);
+    });
+
+    it('tolerates surrounding whitespace from a clipboard', () => {
+        expect(inspectKeyShape(`  ${GOOD}  `).ok).toBe(true);
     });
 });

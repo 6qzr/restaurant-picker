@@ -59,7 +59,11 @@ export const classifyError = (status, payload) => {
     const reason = err.details?.find((d) => d.reason)?.reason ?? '';
 
     if (reason === 'API_KEY_INVALID' || /API key not valid/i.test(msg)) {
-        return new EnrichmentError('invalid-key', 'That API key is not valid.', { status, googleStatus: gStatus });
+        return new EnrichmentError(
+            'invalid-key',
+            'Google rejected that key. Check it was copied in full, and that it belongs to the project where Places API (New) is enabled.',
+            { status, googleStatus: gStatus }
+        );
     }
     // Distinct from SERVICE_DISABLED: here the API may well be enabled on the
     // project, but THIS KEY's "API restrictions" list does not include it. Seen
@@ -196,9 +200,37 @@ export const resolveByText = async (place, { apiKey, withRatings, signal, langua
  * Deliberately uses the cheapest possible field mask: this is a diagnostic, not
  * a lookup, and it should never land on an expensive SKU.
  */
+/** Google API keys are 39 characters and begin with "AIza".
+ *
+ *  Checking locally first turns the most common real-world failure -- a paste
+ *  that dropped characters, or a mobile keyboard that autocorrected one -- from
+ *  an opaque "not valid" from Google into a specific, self-evident message.
+ */
+export const inspectKeyShape = (key = '') => {
+    const trimmed = String(key).trim();
+    if (!trimmed) return { ok: false, reason: 'empty' };
+    if (/\s/.test(trimmed)) return { ok: false, reason: 'whitespace' };
+    if (!trimmed.startsWith('AIza')) return { ok: false, reason: 'prefix' };
+    if (trimmed.length !== 39) return { ok: false, reason: 'length', length: trimmed.length };
+    if (!/^[A-Za-z0-9_-]+$/.test(trimmed)) return { ok: false, reason: 'charset' };
+    return { ok: true, length: trimmed.length };
+};
+
+const SHAPE_HINTS = {
+    empty: 'No API key is set.',
+    whitespace: 'That key contains a space or line break. Paste it again without any surrounding text.',
+    prefix: 'That does not look like a Google API key -- they begin with "AIza".',
+    charset: 'That key contains characters a Google API key never has. It may have been autocorrected; try pasting it again.',
+};
+
 export const testConnection = async (apiKey, { signal } = {}) => {
-    if (!apiKey) {
-        return { ok: false, code: 'no-key', hint: 'No API key is set.' };
+    const shape = inspectKeyShape(apiKey);
+    if (!shape.ok) {
+        const hint =
+            shape.reason === 'length'
+                ? `That key is ${shape.length} characters; a Google API key is 39. It looks like the paste was cut short.`
+                : SHAPE_HINTS[shape.reason];
+        return { ok: false, code: shape.reason === 'empty' ? 'no-key' : 'bad-key-shape', hint };
     }
     try {
         await request(`${BASE}/places:searchText`, {
