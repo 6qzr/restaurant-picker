@@ -6,7 +6,9 @@ import { pickNext, similarity, passesConstraints } from '../src/engine/rank/mmr.
 import { encodeBoard, decodeBoard } from '../src/share/codec.js';
 import { normalizeElement } from '../src/engine/discovery/osmNormalize.js';
 import { scoreMatch, normalizeName, diceSimilarity } from '../src/engine/enrich/matcher.js';
-import { classifyError, QuotaError, inspectKeyShape, sanitizeKey } from '../src/engine/enrich/googlePlaces.js';
+import {
+    classifyError, QuotaError, inspectKeyShape, sanitizeKey, testConnection,
+} from '../src/engine/enrich/googlePlaces.js';
 import { coveringTiles, tileSizeKm, tileBBox, latToTileY, lonToTileX } from '../src/engine/discovery/tiles.js';
 import { quality, proximity } from '../src/engine/rank/score.js';
 import { mapsUrlFor, directionsUrlFor } from '../src/utils/format.js';
@@ -551,6 +553,22 @@ describe('api key sanitising', () => {
         const r = inspectKeyShape('xxAIzaSyEXAMPLE-NOT-A-REAL-KEY-01234567');
         expect(r.reason).toBe('prefix');
         expect(r.startsWith).toBe('xxAI');
+    });
+
+    /** The failure that actually happened: "AIza" was read off the screen and
+     *  typed as "Alza", because capital I and lowercase l are the same shape in
+     *  most UI typefaces -- including the one the error message was rendered in,
+     *  so the message could not be used to spot the mistake. */
+    it('detects a lowercase L typed where the capital i belongs', async () => {
+        const r = await testConnection('Alza' + 'b'.repeat(35));
+        expect(r.code).toBe('bad-key-shape');
+        expect(r.hint).toMatch(/lowercase L where the capital i should be/);
+        expect(r.hint).toMatch(/capital A, capital i, lowercase z, lowercase a/);
+    });
+
+    it('spells out the prefix rather than only showing it', async () => {
+        const r = await testConnection('zzzz' + 'b'.repeat(35));
+        expect(r.hint).toMatch(/capital A, capital i, lowercase z, lowercase a/);
     });
 
     it('leaves a correct key untouched', () => {

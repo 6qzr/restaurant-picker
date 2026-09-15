@@ -253,6 +253,17 @@ export const inspectKeyShape = (key = '') => {
     return { ok: true, length: trimmed.length };
 };
 
+/** Capital I and lowercase L are near-identical in most UI typefaces, so
+ *  "begins with AIza" is unreadable as guidance -- it cannot be used to spot
+ *  that you typed the other one. Name the character, do not just show it. */
+const prefixHint = (actual = '') => {
+    const looksLikeConfusion = /^a[l1|]za/i.test(actual);
+    const spelled = 'capital A, capital i, lowercase z, lowercase a';
+    return looksLikeConfusion
+        ? `A Google API key begins with "AIza" -- ${spelled}. This one begins with "${actual}", which looks like a lowercase L where the capital i should be.`
+        : `A Google API key begins with "AIza" -- ${spelled}. This one begins with "${actual}".`;
+};
+
 const SHAPE_HINTS = {
     empty: 'No API key is set.',
     whitespace: 'That key contains a space or line break. Paste it again without any surrounding text.',
@@ -269,7 +280,7 @@ export const testConnection = async (apiKey, { signal } = {}) => {
             shape.reason === 'length'
                 ? `That key is ${shape.length} characters; a Google API key is 39. It looks like the paste was cut short.`
                 : shape.reason === 'prefix'
-                  ? `A Google API key begins with "AIza"; this one begins with "${shape.startsWith}".`
+                  ? prefixHint(shape.startsWith)
                   : SHAPE_HINTS[shape.reason];
         return { ok: false, code: shape.reason === 'empty' ? 'no-key' : 'bad-key-shape', hint };
     }

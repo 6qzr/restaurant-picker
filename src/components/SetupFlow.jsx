@@ -83,7 +83,12 @@ export const SetupFlow = ({ onDone }) => {
                             spellCheck={false}
                             inputMode="text"
                             className="w-full h-11 px-3 rounded-xl border mb-3 text-sm"
-                            style={{ borderColor: 'var(--line)', background: 'var(--surface-2)', color: 'var(--ink)' }}
+                            style={{
+                                borderColor: 'var(--line)',
+                                background: 'var(--surface-2)',
+                                color: 'var(--ink)',
+                                fontFamily: "ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace",
+                            }}
                         />
 
                         <div className="rounded-xl p-3 mb-4 text-xs"
