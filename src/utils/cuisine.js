@@ -125,3 +125,17 @@ export const matchesChips = (place, chipIds) => {
         return chip.categories.includes(place.category);
     });
 };
+
+/** How many places each chip would actually leave you choosing between.
+ *
+ *  Worth surfacing: in a real pool of ~500 Muscat places, "Pizza" reaches 15
+ *  and "Healthy" reaches none. A chip that silently empties the board is
+ *  indistinguishable from the app being broken.
+ */
+export const chipCounts = (places = []) => {
+    const counts = {};
+    for (const chip of CUISINE_CHIPS) {
+        counts[chip.id] = places.reduce((n, p) => n + (matchesChips(p, [chip.id]) ? 1 : 0), 0);
+    }
+    return counts;
+};

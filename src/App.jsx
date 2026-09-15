@@ -13,6 +13,7 @@ import { getPlacesByIds } from './data/placesRepo.js';
 import { runQuery, buildIdQuery } from './engine/discovery/overpass.js';
 import { normalizeElements } from './engine/discovery/osmNormalize.js';
 import { SEARCH } from './config.js';
+import { matchesChips, chipCounts } from './utils/cuisine.js';
 
 import SetupFlow from './components/SetupFlow.jsx';
 import Board from './components/Board.jsx';
@@ -96,6 +97,13 @@ const App = () => {
         [board, s.voters, s.votes]
     );
 
+    // What the picker can actually choose between, after the chips.
+    const selectable = useMemo(
+        () => (s.chips.length ? s.pool.filter((p) => matchesChips(p, s.chips)).length : s.pool.length),
+        [s.pool, s.chips]
+    );
+    const counts = useMemo(() => chipCounts(s.pool), [s.pool]);
+
     if (!setupDone) return <SetupFlow onDone={handleSetup} />;
 
     if (!location) {
@@ -132,7 +140,8 @@ const App = () => {
     return (
         <div className="min-h-dvh flex flex-col">
             <TopBar
-                poolSize={s.pool.length}
+                poolSize={selectable}
+                totalSize={s.pool.length}
                 sweepPhase={s.sweepPhase}
                 offline={offline}
                 onOpenSettings={() => setSettingsOpen(true)}
@@ -147,7 +156,7 @@ const App = () => {
                     </div>
                 </section>
 
-                <CuisineChips chips={s.chips} onToggle={s.toggleChip} />
+                <CuisineChips chips={s.chips} onToggle={s.toggleChip} counts={counts} />
 
                 {board ? (
                     <Board
@@ -207,7 +216,7 @@ const App = () => {
                 canSpin={ready && !s.isPicking}
                 isPicking={s.isPicking}
                 hasBoard={Boolean(board)}
-                poolSize={s.pool.length}
+                poolSize={selectable}
                 sweepPhase={s.sweepPhase}
                 onSpin={() => spin()}
                 onShare={() => setShareOpen(true)}
