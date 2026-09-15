@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { useStore } from '../store/index.js';
-import { enrichPlaces } from '../engine/enrich/enrichQueue.js';
+import { enrichPlaces, clearMemory } from '../engine/enrich/enrichQueue.js';
 import { recordShown, recordVeto, recordChosen, loadAllSeen } from '../engine/history/seenStore.js';
 import { votePlace, loadPrefs } from '../data/prefsRepo.js';
 import { CONFIG_MONTHLY_CAP } from '../config-runtime.js';
@@ -65,6 +65,23 @@ export const useBoard = () => {
         await recordChosen(place.id);
         store.getState().setSeen(await loadAllSeen());
     }, [store]);
+
+    /** Fixing the key should fix the board that is already on screen.
+     *  Without this, a user who corrected a bad key saw the same rating-less
+     *  cards and reasonably concluded the new key had not worked either. */
+    const apiKey = useStore((s) => s.apiKey);
+    const showRatings = useStore((s) => s.showRatings);
+    const firstRun = useRef(true);
+    useEffect(() => {
+        if (firstRun.current) {
+            firstRun.current = false;
+            return;
+        }
+        clearMemory();
+        store.getState().setEnrichments(new Map());
+        const current = store.getState().board;
+        if (current) enrichBoard(current);
+    }, [apiKey, showRatings, store, enrichBoard]);
 
     useEffect(() => () => enrichmentsRef.current?.abort(), []);
 

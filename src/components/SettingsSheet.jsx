@@ -49,12 +49,27 @@ export const SettingsSheet = ({ open, onClose, reduced, apiKey, showRatings, onS
         setKeyInput('');
     }, [open]);
 
-    /** One real call, so "no ratings" stops being a guessing game. */
-    const runTest = async () => {
+    /** One real call, so "no ratings" stops being a guessing game.
+     *  Takes the key explicitly: after a save, the prop is still the old value
+     *  for this tick, and testing the key the user just replaced is exactly the
+     *  bug this is here to prevent. */
+    const runTest = async (key = apiKey) => {
         setTesting(true);
-        const result = await testConnection(apiKey);
+        setStatus(null);
+        const result = await testConnection(key);
         setStatus({ code: result.code, hint: result.hint, docsUrl: result.docsUrl, at: Date.now() });
         setTesting(false);
+    };
+
+    const saveKey = async (raw) => {
+        const key = raw.trim();
+        if (!key) return;
+        onSetKey(key);
+        setKeyInput('');
+        // Verify immediately. Previously the banner kept showing the PREVIOUS
+        // key's failure, so replacing a bad key with a good one looked like the
+        // good one had been rejected too.
+        await runTest(key);
     };
 
     const unVeto = async (id) => {
@@ -128,7 +143,7 @@ export const SettingsSheet = ({ open, onClose, reduced, apiKey, showRatings, onS
             {apiKey && (
                 <button
                     type="button"
-                    onClick={runTest}
+                    onClick={() => runTest()}
                     disabled={testing}
                     className="btn w-full h-10 my-3 inline-flex items-center justify-center gap-2 text-sm border disabled:opacity-50"
                     style={{ borderColor: 'var(--line)' }}
@@ -142,7 +157,7 @@ export const SettingsSheet = ({ open, onClose, reduced, apiKey, showRatings, onS
                     className="flex gap-2 py-3"
                     onSubmit={(e) => {
                         e.preventDefault();
-                        if (keyInput.trim()) onSetKey(keyInput.trim());
+                        saveKey(keyInput);
                     }}
                 >
                     <input
@@ -154,8 +169,13 @@ export const SettingsSheet = ({ open, onClose, reduced, apiKey, showRatings, onS
                         className="flex-1 h-10 px-3 rounded-xl border text-sm"
                         style={{ borderColor: 'var(--line)', background: 'var(--surface-2)', color: 'var(--ink)' }}
                     />
-                <button type="submit" className="btn px-4 h-10 text-sm border" style={{ borderColor: 'var(--line)' }}>
-                    Save
+                <button
+                    type="submit"
+                    disabled={testing || !keyInput.trim()}
+                    className="btn px-4 h-10 text-sm border disabled:opacity-50"
+                    style={{ borderColor: 'var(--line)' }}
+                >
+                    {testing ? 'Checking…' : 'Save'}
                 </button>
                 {apiKey && (
                     <button
