@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
-import { RotateCcw, Star, KeyRound, AlertTriangle, CheckCircle2, ExternalLink } from 'lucide-react';
+import { RotateCcw, Star, KeyRound, AlertTriangle, CheckCircle2, ExternalLink, Stethoscope, Loader2 } from 'lucide-react';
 import Sheet from './primitives/Sheet.jsx';
 import { Bidi, Num } from './primitives/Bidi.jsx';
 import { listVetoed, clearVeto } from '../engine/history/seenStore.js';
 import { getBudget, totalCalls } from '../data/budgetRepo.js';
 import { enrichmentStatus } from '../engine/enrich/enrichQueue.js';
+import { testConnection } from '../engine/enrich/googlePlaces.js';
 
 const Row = ({ label, hint, children }) => (
     <div className="flex items-center justify-between gap-4 py-3 border-b" style={{ borderColor: 'var(--line)' }}>
@@ -38,6 +39,7 @@ export const SettingsSheet = ({ open, onClose, reduced, apiKey, showRatings, onS
     const [budget, setBudget] = useState(null);
     const [keyInput, setKeyInput] = useState('');
     const [status, setStatus] = useState(null);
+    const [testing, setTesting] = useState(false);
 
     useEffect(() => {
         if (!open) return;
@@ -46,6 +48,14 @@ export const SettingsSheet = ({ open, onClose, reduced, apiKey, showRatings, onS
         setStatus(enrichmentStatus());
         setKeyInput('');
     }, [open]);
+
+    /** One real call, so "no ratings" stops being a guessing game. */
+    const runTest = async () => {
+        setTesting(true);
+        const result = await testConnection(apiKey);
+        setStatus({ code: result.code, hint: result.hint, docsUrl: result.docsUrl, at: Date.now() });
+        setTesting(false);
+    };
 
     const unVeto = async (id) => {
         await clearVeto(id);
@@ -114,6 +124,19 @@ export const SettingsSheet = ({ open, onClose, reduced, apiKey, showRatings, onS
             >
                 <KeyRound className="w-4 h-4" style={{ color: apiKey ? 'var(--accent)' : 'var(--ink-3)' }} />
             </Row>
+
+            {apiKey && (
+                <button
+                    type="button"
+                    onClick={runTest}
+                    disabled={testing}
+                    className="btn w-full h-10 my-3 inline-flex items-center justify-center gap-2 text-sm border disabled:opacity-50"
+                    style={{ borderColor: 'var(--line)' }}
+                >
+                    {testing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Stethoscope className="w-4 h-4" />}
+                    {testing ? 'Asking Google…' : 'Test my key'}
+                </button>
+            )}
 
             {!apiKey && (
                 <form

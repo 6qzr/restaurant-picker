@@ -48,3 +48,36 @@ export const readableHours = (raw) => {
     if (raw === '24/7') return 'Open 24/7';
     return raw;
 };
+
+/**
+ * Where "Go" should send you.
+ *
+ * Linking to bare coordinates (which is what this did) drops a pin in the
+ * middle of nowhere instead of opening the restaurant, so you get no hours, no
+ * reviews and no name. Coordinates were chosen so the link would work without a
+ * Google Place ID -- but the name works without one too, and carries far more.
+ *
+ * - With a Place ID from enrichment: the official Maps URL API opens that exact
+ *   business listing.
+ * - Without one: search for the name centred on its coordinates, so Google
+ *   resolves the right branch rather than a same-named place in another city.
+ */
+export const mapsUrlFor = (place, enrichment) => {
+    const name = encodeURIComponent(place.name);
+    const placeId = enrichment?.googlePlaceId;
+
+    if (placeId && !String(placeId).startsWith('mock_')) {
+        return `https://www.google.com/maps/search/?api=1&query=${name}&query_place_id=${encodeURIComponent(placeId)}`;
+    }
+    return `https://www.google.com/maps/search/${name}/@${place.lat},${place.lon},17z`;
+};
+
+/** Turn-by-turn, for when the user wants directions rather than the listing. */
+export const directionsUrlFor = (place, enrichment) => {
+    const dest = encodeURIComponent(place.name);
+    const placeId = enrichment?.googlePlaceId;
+    const base = `https://www.google.com/maps/dir/?api=1&destination=${dest}`;
+    return placeId && !String(placeId).startsWith('mock_')
+        ? `${base}&destination_place_id=${encodeURIComponent(placeId)}`
+        : `https://www.google.com/maps/dir/?api=1&destination=${place.lat},${place.lon}`;
+};

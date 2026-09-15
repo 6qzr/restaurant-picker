@@ -9,6 +9,7 @@ import { scoreMatch, normalizeName, diceSimilarity } from '../src/engine/enrich/
 import { classifyError, QuotaError } from '../src/engine/enrich/googlePlaces.js';
 import { coveringTiles, tileSizeKm, tileBBox, latToTileY, lonToTileX } from '../src/engine/discovery/tiles.js';
 import { quality, proximity } from '../src/engine/rank/score.js';
+import { mapsUrlFor, directionsUrlFor } from '../src/utils/format.js';
 
 const DAY = 86400000;
 
@@ -358,5 +359,37 @@ describe('google error classification', () => {
         const e = classifyError(500, null);
         expect(e.code).toBe('error');
         expect(e.hint).toMatch(/500/);
+    });
+});
+
+describe('maps links', () => {
+    const place = { name: 'Star Coffee Shop', lat: 23.588, lon: 58.3829 };
+    const arabic = { name: 'مطعم الجود', lat: 23.5, lon: 58.4 };
+
+    /** Linking to bare coordinates opened a pin in empty space rather than the
+     *  restaurant -- no name, no hours, no reviews. */
+    it('never links to bare coordinates when a name exists', () => {
+        const url = mapsUrlFor(place, null);
+        expect(url).toContain(encodeURIComponent(place.name));
+        expect(url).not.toMatch(/query=23\.588%2C58\.3829/);
+    });
+
+    it('centres a nameless-ID search on the coordinates, so the right branch wins', () => {
+        expect(mapsUrlFor(place, null)).toContain('@23.588,58.3829,17z');
+    });
+
+    it('uses the exact listing when a Place ID is known', () => {
+        const url = mapsUrlFor(place, { googlePlaceId: 'ChIJabc123' });
+        expect(url).toContain('query_place_id=ChIJabc123');
+        expect(url).toContain('api=1');
+    });
+
+    it('ignores mock Place IDs from the offline dev mode', () => {
+        expect(mapsUrlFor(place, { googlePlaceId: 'mock_999' })).not.toContain('query_place_id');
+    });
+
+    it('percent-encodes Arabic names in both forms', () => {
+        expect(mapsUrlFor(arabic, null)).toContain('%D9%85');
+        expect(directionsUrlFor(arabic, { googlePlaceId: 'ChIJx' })).toContain('%D9%85');
     });
 });
