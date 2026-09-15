@@ -29,7 +29,30 @@ export const similarity = (a, b, radiusKm) => {
 
 /** Hard constraints, applied on top of the soft MMR penalty. Cheaper and far
  *  more legible than trying to tune lambda to express "not within 250m". */
+/** Same trading name, ignoring case, punctuation and an "Al "/"The " article.
+ *  Two branches of a chain read as a duplicate to the user no matter how far
+ *  apart they are. */
+const sameName = (a, b) => {
+    const norm = (n = '') =>
+        String(n)
+            .toLowerCase()
+            .normalize('NFKD')
+            .replace(/\p{M}+/gu, '')
+            .replace(/^(the|al)\s+/, '')
+            .replace(/[^\p{L}\p{N}]+/gu, '');
+    const x = norm(a);
+    return Boolean(x) && x === norm(b);
+};
+
 export const CONSTRAINTS = [
+    {
+        // NEVER relaxed. Two cards showing the same restaurant is the one
+        // outcome that makes the board look broken rather than merely narrow.
+        name: 'identity',
+        required: true,
+        ok: (cand, chosen) =>
+            !chosen.some((c) => c.id === cand.id || sameName(cand.name, c.name)),
+    },
     {
         name: 'brand',
         ok: (cand, chosen) =>
@@ -60,7 +83,9 @@ const RELAX_ORDER = ['brand', 'distance', 'cuisine'];
 
 export const passesConstraints = (cand, chosen, relaxLevel = 0) => {
     const dropped = RELAX_ORDER.slice(0, relaxLevel);
-    return CONSTRAINTS.every((c) => dropped.includes(c.name) || c.ok(cand, chosen));
+    return CONSTRAINTS.every(
+        (c) => (!c.required && dropped.includes(c.name)) || c.ok(cand, chosen)
+    );
 };
 
 /**
