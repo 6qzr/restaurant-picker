@@ -38,14 +38,46 @@ export const TILES = {
     ringLazyAboveKm: 6,
     earlyStopNamedCount: 250,
     maxTiles: 60,
+    // Up to here the disc is swept exhaustively. Past it the tile count grows
+    // with the square of the radius -- a 50km disc is ~540 tiles at z13, which
+    // is hours of polite Overpass traffic -- so the far field is probed with a
+    // bounded, evenly-fanned SAMPLE instead. See coveringTiles().
+    fullCoverageKm: 15,
+    // The far field is probed, not covered: each of `outerSectors` directions
+    // gets one probe per `outerKmPerProbe` of extra reach, up to
+    // `outerProbesPerSector`. Fewer sectors would let one direction swallow the
+    // whole budget, which is the failure the sample exists to avoid.
+    outerSectors: 12,
+    outerKmPerProbe: 5,
+    outerProbesPerSector: 6,
 };
 
 export const SEARCH = {
     minRadiusKm: 1,
-    maxRadiusKm: 15,
+    maxRadiusKm: 50,
     defaultRadiusKm: 5,
     minPoolToSpin: 12,
+    /** Detents, not a linear 1..50 sweep.
+     *
+     *  A 50-position slider spends most of its travel on distinctions nobody
+     *  makes (37km vs 38km) while the ones people do make (5 vs 10) sit a
+     *  pixel apart. Steps are fine where the choice is real and coarse where
+     *  it is not, which also keeps a drag from firing 50 re-sweeps. */
+    radiusSteps: [1, 2, 3, 4, 5, 6, 7, 8, 10, 12, 15, 20, 25, 30, 40, 50],
 };
+
+/** Index of the detent closest to `km`. A radius restored from storage or from
+ *  a share link need not be one of ours. */
+export const nearestRadiusStep = (km) =>
+    SEARCH.radiusSteps.reduce(
+        (best, step, i) =>
+            Math.abs(step - km) < Math.abs(SEARCH.radiusSteps[best] - km) ? i : best,
+        0
+    );
+
+/** The next detent outward, for "search further out". */
+export const widerRadius = (km) =>
+    SEARCH.radiusSteps[Math.min(SEARCH.radiusSteps.length - 1, nearestRadiusStep(km) + 1)];
 
 export const SCORE = {
     priorRating: 4.1,

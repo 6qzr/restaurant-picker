@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { UtensilsCrossed, Loader2, WifiOff, Share2, Settings } from 'lucide-react';
+import { UtensilsCrossed, Loader2, WifiOff, Share2, Settings, HelpCircle } from 'lucide-react';
 import { Num } from './primitives/Bidi.jsx';
 
 /** The header shows POOL SIZE, not a cost gauge.
@@ -12,7 +12,7 @@ import { Num } from './primitives/Bidi.jsx';
  *  their filters. Showing the unfiltered total was actively misleading: with
  *  the Pizza chip on, the header read "567 places" while the board was choosing
  *  between 15, which is why the variety looked broken rather than narrowed. */
-export const TopBar = ({ poolSize, totalSize, sweepPhase, offline, onOpenSettings }) => (
+export const TopBar = ({ poolSize, totalSize, sweepPhase, offline, onOpenSettings, onOpenGuide }) => (
     <header
         className="chrome sticky top-0 z-30 flex items-center justify-between gap-3 px-4 py-3"
         style={{ paddingTop: 'max(0.75rem, env(safe-area-inset-top))' }}
@@ -52,6 +52,10 @@ export const TopBar = ({ poolSize, totalSize, sweepPhase, offline, onOpenSetting
                     </>
                 )}
             </span>
+            <button type="button" onClick={onOpenGuide} aria-label="How it works"
+                className="btn grid place-items-center w-8 h-8" style={{ color: 'var(--ink-3)' }}>
+                <HelpCircle className="w-4 h-4" />
+            </button>
             <button type="button" onClick={onOpenSettings} aria-label="Settings"
                 className="btn grid place-items-center w-8 h-8" style={{ color: 'var(--ink-3)' }}>
                 <Settings className="w-4 h-4" />

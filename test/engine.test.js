@@ -10,6 +10,7 @@ import {
     classifyError, QuotaError, inspectKeyShape, sanitizeKey, testConnection,
 } from '../src/engine/enrich/googlePlaces.js';
 import { coveringTiles, tileSizeKm, tileBBox, latToTileY, lonToTileX } from '../src/engine/discovery/tiles.js';
+import { TILES, SEARCH, nearestRadiusStep, widerRadius } from '../src/config.js';
 import { quality, proximity } from '../src/engine/rank/score.js';
 import { mapsUrlFor, directionsUrlFor } from '../src/utils/format.js';
 import { chipCounts, matchesChips, CUISINE_CHIPS } from '../src/utils/cuisine.js';
@@ -348,7 +349,68 @@ describe('tiling', () => {
 
     it('grows tile count with radius but stays bounded', () => {
         expect(coveringTiles(23.588, 58.3829, 1).length).toBeLessThan(coveringTiles(23.588, 58.3829, 10).length);
-        expect(coveringTiles(23.588, 58.3829, 50).length).toBeLessThanOrEqual(60);
+        // Covering a 50km disc outright is ~540 tiles, which at two polite
+        // requests at a time is hours of Overpass traffic.
+        expect(coveringTiles(23.588, 58.3829, 50).length).toBeLessThanOrEqual(
+            TILES.maxTiles + TILES.outerSectors * TILES.outerProbesPerSector
+        );
+    });
+
+    it('sweeps the near field exhaustively, with no probes', () => {
+        for (const r of [1, 5, 10, TILES.fullCoverageKm]) {
+            expect(coveringTiles(23.588, 58.3829, r).some((t) => t.sampled)).toBe(false);
+        }
+    });
+
+    it('reaches further out as the radius grows', () => {
+        // The bug this pins: fanning to the NEAREST tile in each direction
+        // spreads correctly but never leaves the inner edge, so 20km and 50km
+        // searched exactly the same ground.
+        const reach = (r) =>
+            coveringTiles(23.588, 58.3829, r).reduce((m, t) => Math.max(m, t.distanceKm), 0);
+        expect(reach(50)).toBeGreaterThan(reach(30));
+        expect(reach(30)).toBeGreaterThan(reach(20));
+        expect(reach(20)).toBeGreaterThan(reach(TILES.fullCoverageKm));
+    });
+
+    it('probes every direction, not whichever side is tiled densest', () => {
+        const lat = 23.588;
+        const lon = 58.3829;
+        const probes = coveringTiles(lat, lon, 50).filter((t) => t.sampled);
+        const quadrant = (t) =>
+            `${t.center.lat >= lat ? 'n' : 's'}${t.center.lon >= lon ? 'e' : 'w'}`;
+        expect(new Set(probes.map(quadrant)).size).toBe(4);
+    });
+
+    it('keeps the fully-covered core ordered centre-outwards', () => {
+        const core = coveringTiles(23.588, 58.3829, 30).filter((t) => !t.sampled);
+        const dists = core.map((t) => t.distanceKm);
+        expect(dists).toEqual([...dists].sort((a, b) => a - b));
+    });
+
+    it('clamps a radius no dial can produce', () => {
+        // A share link carries the radius as a byte in 0.5km steps, so a
+        // hand-edited one can ask for 127km -- and the grid grows with its square.
+        expect(coveringTiles(23.588, 58.3829, 127)).toEqual(
+            coveringTiles(23.588, 58.3829, SEARCH.maxRadiusKm)
+        );
+    });
+});
+
+describe('radius detents', () => {
+    it('snaps a stored or shared radius to the nearest detent', () => {
+        expect(SEARCH.radiusSteps[nearestRadiusStep(13)]).toBe(12);
+        expect(SEARCH.radiusSteps[nearestRadiusStep(5)]).toBe(5);
+        // Dead centre between two detents settles on the narrower search,
+        // which is the cheaper sweep to be wrong about.
+        expect(SEARCH.radiusSteps[nearestRadiusStep(11)]).toBe(10);
+        expect(SEARCH.radiusSteps[nearestRadiusStep(999)]).toBe(SEARCH.maxRadiusKm);
+    });
+
+    it('widens by one detent and stops at the last', () => {
+        expect(widerRadius(5)).toBe(6);
+        expect(widerRadius(15)).toBe(20);
+        expect(widerRadius(SEARCH.maxRadiusKm)).toBe(SEARCH.maxRadiusKm);
     });
 });
 

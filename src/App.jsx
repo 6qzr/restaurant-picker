@@ -12,20 +12,44 @@ import { urlToBoard } from './share/codec.js';
 import { getPlacesByIds } from './data/placesRepo.js';
 import { runQuery, buildIdQuery } from './engine/discovery/overpass.js';
 import { normalizeElements } from './engine/discovery/osmNormalize.js';
-import { SEARCH } from './config.js';
+import { SEARCH, widerRadius } from './config.js';
 import { matchesChips, chipCounts } from './utils/cuisine.js';
 
 import SetupFlow from './components/SetupFlow.jsx';
 import Board from './components/Board.jsx';
 import ShareSheet from './components/ShareSheet.jsx';
 import SettingsSheet from './components/SettingsSheet.jsx';
+import HowItWorks from './components/HowItWorks.jsx';
 import { TopBar, BottomBar } from './components/Chrome.jsx';
 import { RadiusDial, SurpriseDial, ModeToggle, CuisineChips } from './components/Controls.jsx';
+
+const GUIDE_FLAG = 'cc_guide';
+
+/** localStorage throws in a locked-down private window, where the honest
+ *  fallback is "not seen yet" -- the guide reopening is a smaller failure than
+ *  the app refusing to start. */
+const readFlag = (key) => {
+    try {
+        return localStorage.getItem(key) === '1';
+    } catch {
+        return false;
+    }
+};
+
+const writeFlag = (key) => {
+    try {
+        localStorage.setItem(key, '1');
+    } catch {
+        /* the guide will offer itself again next visit */
+    }
+};
 
 const App = () => {
     const [setupDone, setSetupDone] = useState(() => localStorage.getItem('cc_setup') === '1');
     const [shareOpen, setShareOpen] = useState(false);
     const [settingsOpen, setSettingsOpen] = useState(false);
+    const [guideOpen, setGuideOpen] = useState(false);
+    const [guideSeen, setGuideSeen] = useState(() => readFlag(GUIDE_FLAG));
     const [offline, setOffline] = useState(!navigator.onLine);
     const [votes, setVotes] = useState({});
 
@@ -45,6 +69,22 @@ const App = () => {
             window.removeEventListener('online', on);
             window.removeEventListener('offline', off);
         };
+    }, []);
+
+    /** Shown once, and only once the app is actually usable.
+     *
+     *  Not over the setup screen and not over the location prompt: a guide to
+     *  controls you cannot see yet is just a wall between you and the thing you
+     *  came for. By here the board and its dials are behind the sheet. */
+    useEffect(() => {
+        if (!setupDone || !location || guideSeen) return;
+        setGuideOpen(true);
+    }, [setupDone, location, guideSeen]);
+
+    const closeGuide = useCallback(() => {
+        setGuideOpen(false);
+        setGuideSeen(true);
+        writeFlag(GUIDE_FLAG);
     }, []);
 
     /** A shared link reproduces the exact three places, looking them up locally
@@ -145,6 +185,7 @@ const App = () => {
                 sweepPhase={s.sweepPhase}
                 offline={offline}
                 onOpenSettings={() => setSettingsOpen(true)}
+                onOpenGuide={() => setGuideOpen(true)}
             />
 
             <main className="flex-1 w-full max-w-5xl mx-auto px-4 pt-4 pb-6 flex flex-col gap-5">
@@ -170,7 +211,7 @@ const App = () => {
                         onVeto={veto}
                         onChoose={choose}
                         onRespin={() => spin()}
-                        onWiden={() => s.setRadius(Math.min(SEARCH.maxRadiusKm, s.radiusKm + 3))}
+                        onWiden={() => s.setRadius(widerRadius(s.radiusKm))}
                     />
                 ) : (
                     <div className="flex-1 grid place-items-center text-center py-16">
@@ -251,6 +292,14 @@ const App = () => {
                 showRatings={s.showRatings}
                 onShowRatings={s.setShowRatings}
                 onSetKey={s.setApiKey}
+                onOpenGuide={() => { setSettingsOpen(false); setGuideOpen(true); }}
+            />
+
+            <HowItWorks
+                open={guideOpen}
+                onClose={closeGuide}
+                reduced={reducedMotion}
+                firstRun={!guideSeen}
             />
 
             <footer className="px-4 pb-4 text-center">
