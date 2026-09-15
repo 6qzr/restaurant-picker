@@ -66,10 +66,19 @@ export const mapsUrlFor = (place, enrichment) => {
     const name = encodeURIComponent(place.name);
     const placeId = enrichment?.googlePlaceId;
 
+    // Matched to a Google listing: open it. The user gets reviews, hours,
+    // photos and a directions button of their own.
     if (placeId && !String(placeId).startsWith('mock_')) {
         return `https://www.google.com/maps/search/?api=1&query=${name}&query_place_id=${encodeURIComponent(placeId)}`;
     }
-    return `https://www.google.com/maps/search/${name}/@${place.lat},${place.lon},17z`;
+
+    // No listing. Measured: about a quarter of the places OpenStreetMap knows
+    // about return nothing at all from Google -- they are the small local spots
+    // that make this app worth using. Searching for the name would dump the
+    // user on a results page for a business Google has never heard of, so send
+    // them to the coordinates instead: the destination is exactly right even
+    // though the listing does not exist.
+    return `https://www.google.com/maps/dir/?api=1&destination=${place.lat},${place.lon}`;
 };
 
 /** Turn-by-turn, for when the user wants directions rather than the listing. */

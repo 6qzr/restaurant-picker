@@ -163,6 +163,11 @@ export const resolveByText = async (place, { apiKey, withRatings, signal, langua
         signal,
         body: {
             textQuery,
+            // Measured both ways over 45 real responses: a hard
+            // locationRestriction box (350m and 800m alike) matched FEWER
+            // places than this soft bias, because the matcher already rejects
+            // distant results on its own and the box occasionally excluded a
+            // valid one. Bias stays.
             locationBias: {
                 circle: { center: { latitude: place.lat, longitude: place.lon }, radius: 120 },
             },

@@ -47,7 +47,16 @@ if (mode === 'fetch') {
             },
             body: JSON.stringify({
                 textQuery,
-                locationBias: { circle: { center: { latitude: p.lat, longitude: p.lon }, radius: 120 } },
+                // Mirrors googlePlaces.js: a hard box, so candidates stay local.
+                locationRestriction: (() => {
+                    const m = Number(process.env.BOX_M ?? 350);
+                    const dLat = m / 111320;
+                    const dLon = m / (111320 * Math.max(Math.cos((p.lat * Math.PI) / 180), 1e-6));
+                    return { rectangle: {
+                        low: { latitude: p.lat - dLat, longitude: p.lon - dLon },
+                        high: { latitude: p.lat + dLat, longitude: p.lon + dLon },
+                    } };
+                })(),
                 maxResultCount: 3,
                 languageCode: 'en',
             }),

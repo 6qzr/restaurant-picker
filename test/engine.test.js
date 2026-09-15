@@ -396,16 +396,13 @@ describe('maps links', () => {
     const place = { name: 'Star Coffee Shop', lat: 23.588, lon: 58.3829 };
     const arabic = { name: 'مطعم الجود', lat: 23.5, lon: 58.4 };
 
-    /** Linking to bare coordinates opened a pin in empty space rather than the
-     *  restaurant -- no name, no hours, no reviews. */
-    it('never links to bare coordinates when a name exists', () => {
+    /** About a quarter of OSM places return nothing from Google, so a name
+     *  search would land the user on results for a business Google has never
+     *  heard of. Directions to the coordinates are always correct. */
+    it('routes to the exact coordinates when there is no Google listing', () => {
         const url = mapsUrlFor(place, null);
-        expect(url).toContain(encodeURIComponent(place.name));
-        expect(url).not.toMatch(/query=23\.588%2C58\.3829/);
-    });
-
-    it('centres a nameless-ID search on the coordinates, so the right branch wins', () => {
-        expect(mapsUrlFor(place, null)).toContain('@23.588,58.3829,17z');
+        expect(url).toContain('/maps/dir/');
+        expect(url).toContain('destination=23.588,58.3829');
     });
 
     it('uses the exact listing when a Place ID is known', () => {
@@ -418,8 +415,8 @@ describe('maps links', () => {
         expect(mapsUrlFor(place, { googlePlaceId: 'mock_999' })).not.toContain('query_place_id');
     });
 
-    it('percent-encodes Arabic names in both forms', () => {
-        expect(mapsUrlFor(arabic, null)).toContain('%D9%85');
+    it('percent-encodes Arabic names when a listing exists', () => {
+        expect(mapsUrlFor(arabic, { googlePlaceId: 'ChIJx' })).toContain('%D9%85');
         expect(directionsUrlFor(arabic, { googlePlaceId: 'ChIJx' })).toContain('%D9%85');
     });
 });
