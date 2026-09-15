@@ -114,7 +114,7 @@ export const HowItWorks = ({ open, onClose, reduced, firstRun = false }) => (
 
         {firstRun && (
             <p className="text-xs mt-3 text-center" style={{ color: 'var(--ink-3)' }}>
-                This is in Settings whenever you want it again.
+                Tap <strong>?</strong> in the corner whenever you want this again.
             </p>
         )}
     </Sheet>
