@@ -81,24 +81,20 @@ export const createSweep = ({ onBatch, onProgress } = {}) => {
         let failed = 0;
         let stop = false;
 
+        // Phase A: the core query only, emitted the moment it lands.
+        //
+        // The tail query (ice cream, bars, food courts, bakeries tagged as
+        // shops) used to run inline here, which doubled the requests standing
+        // between the user and their first result -- 18 round-trips for a 5km
+        // radius when a single tile already yields ~150 places. It is a bonus,
+        // so it now runs after the board is usable.
+        const tailQueue = [];
+
         const worker = async (tile) => {
             if (stop || signal.aborted) return;
             try {
                 const { elements, mirror } = await runQuery(buildCoreQuery(tile.bbox), { signal });
-                let places = normalizeElements(elements, tile.id);
-
-                // Best-effort tail pass (ice cream, bars, food courts, bakeries
-                // tagged as shops). Split out because Overpass cost scales with
-                // statement count -- folding these into the core query made it
-                // time out on a loaded server.
-                try {
-                    const tail = await runQuery(buildTailQuery(tile.bbox), { signal });
-                    const tailPlaces = normalizeElements(tail.elements, tile.id);
-                    const have = new Set(places.map((p) => p.id));
-                    places = [...places, ...tailPlaces.filter((p) => !have.has(p.id))];
-                } catch {
-                    /* the core results stand on their own */
-                }
+                const places = normalizeElements(elements, tile.id);
 
                 await putPlaces(places);
                 await putTile({
@@ -116,13 +112,16 @@ export const createSweep = ({ onBatch, onProgress } = {}) => {
                 fetched++;
                 if (fresh.length) onBatch?.(fresh, { source: 'network', done: false });
 
+                tailQueue.push(tile);
+
                 if (ringLazy && pool.size >= TILES.earlyStopNamedCount && tile.distanceKm > radiusKm * 0.4) {
                     stop = true;
                 }
             } catch (err) {
                 failed++;
-                // A failed tile is recorded, never fatal. It retries opportunistically
-                // on a later session rather than blocking the board now.
+                // A failed tile is recorded, never fatal. It retries
+                // opportunistically on a later session rather than blocking the
+                // board now.
                 await putTile({
                     tileId: tile.id,
                     bbox: tile.bbox,
@@ -151,6 +150,7 @@ export const createSweep = ({ onBatch, onProgress } = {}) => {
         await current;
         current = null;
 
+        // The board is usable from here on; everything below is additive.
         onProgress?.({
             phase: 'ready',
             total: tiles.length,
@@ -159,6 +159,27 @@ export const createSweep = ({ onBatch, onProgress } = {}) => {
             poolSize: pool.size,
         });
         onBatch?.([], { source: 'done', done: true });
+
+        // Phase B: the long tail, best-effort and never surfaced as an error.
+        if (!signal.aborted && tailQueue.length) {
+            runPool(
+                tailQueue,
+                async (tile) => {
+                    try {
+                        const { elements } = await runQuery(buildTailQuery(tile.bbox), { signal });
+                        const places = normalizeElements(elements, tile.id);
+                        const fresh = places.filter((p) => !pool.has(p.id));
+                        if (!fresh.length) return;
+                        await putPlaces(fresh);
+                        for (const p of fresh) pool.set(p.id, p);
+                        onBatch?.(fresh, { source: 'network-tail', done: false });
+                    } catch {
+                        /* bonus categories; the core results stand alone */
+                    }
+                },
+                { concurrency: 1, spacingMs: OVERPASS.spacingMs, signal }
+            ).catch(() => {});
+        }
 
         return { poolSize: pool.size, tilesFetched: fetched, tilesFailed: failed };
     };

@@ -8,12 +8,17 @@ export const OVERPASS = {
     // Higher [timeout:N] makes Overpass reserve a bigger slot, which is
     // harder to schedule on a loaded server. 25 measurably succeeded where 45 did not.
     serverTimeoutSec: 25,
-    clientTimeoutMs: 40000,
+    // Just past the server's own deadline. Waiting 40s bought nothing: a tile
+    // that has not answered by then is not going to, and meanwhile it occupies
+    // one of only two concurrency slots and delays the user's first result.
+    clientTimeoutMs: 27000,
     // The public instance allows 2 concurrent slots per IP. Measured: exceeding
     // it turns every in-flight tile into a 429.
     concurrency: 2,
     spacingMs: 300,
-    maxAttemptsPerTile: 4,
+    // Fewer attempts up front. A tile that fails is recorded and retried on a
+    // later visit, which costs nothing, whereas retrying now blocks first paint.
+    maxAttemptsPerTile: 2,
     backoffBaseMs: 1500,
     backoffJitterMs: 750,
     // 429 = our own 2-slot quota is busy; wait for a slot, don't hammer mirrors.
