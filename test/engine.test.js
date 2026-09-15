@@ -524,6 +524,35 @@ describe('api key sanitising', () => {
 `)).toBe(GOOD);
     });
 
+    /** The failure that actually reached the user, on an iPhone with an Arabic
+     *  keyboard: an invisible directional mark lands in front of the key when
+     *  RTL and LTR text meet. The key looks perfectly correct on screen, and
+     *  startsWith('AIza') fails, so the app called a correct key wrong. */
+    it.each([
+        ['left-to-right mark', 0x200e],
+        ['right-to-left mark', 0x200f],
+        ['arabic letter mark', 0x061c],
+        ['left-to-right isolate', 0x2066],
+        ['pop directional isolate', 0x2069],
+    ])('strips a leading %s', (_label, code) => {
+        expect(sanitizeKey(ch(code) + GOOD)).toBe(GOOD);
+        expect(inspectKeyShape(ch(code) + GOOD).ok).toBe(true);
+    });
+
+    it.each([
+        ['left-to-right mark', 0x200e],
+        ['right-to-left mark', 0x200f],
+        ['arabic letter mark', 0x061c],
+    ])('strips an embedded %s', (_label, code) => {
+        expect(sanitizeKey(GOOD.slice(0, 12) + ch(code) + GOOD.slice(12))).toBe(GOOD);
+    });
+
+    it('names the actual leading characters when the prefix is genuinely wrong', () => {
+        const r = inspectKeyShape('xxAIzaSyEXAMPLE-NOT-A-REAL-KEY-01234567');
+        expect(r.reason).toBe('prefix');
+        expect(r.startsWith).toBe('xxAI');
+    });
+
     it('leaves a correct key untouched', () => {
         expect(sanitizeKey(GOOD)).toBe(GOOD);
     });

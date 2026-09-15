@@ -222,16 +222,32 @@ export const sanitizeKey = (key = '') =>
         .normalize('NFKC')
         // Every hyphen-like glyph an iOS keyboard may substitute -> plain hyphen.
         .replace(/[\u2010-\u2015\u2212]/g, '-')
-        // All whitespace (NFKC folds a non-breaking space into a normal one)
-        // plus the zero-width characters that survive a copy-paste.
-        .replace(/[\s\u200B-\u200D\uFEFF]+/g, '')
+        // Strip everything invisible. \p{Cf} is the decisive one: a keyboard with
+        // Arabic enabled inserts directional marks (LRM, RLM, the Arabic letter
+        // mark, the isolate characters) when RTL and LTR text meet, and one of
+        // those in front of a key makes it fail a startsWith('AIza') check while
+        // looking perfectly correct on screen. \p{Cc} covers stray control
+        // characters, and \s the ordinary and non-breaking spaces.
+        .replace(/[\s\p{Cf}\p{Cc}]+/gu, '')
         .trim();
 
 export const inspectKeyShape = (key = '') => {
     const trimmed = sanitizeKey(key);
     if (!trimmed) return { ok: false, reason: 'empty' };
     if (/\s/.test(trimmed)) return { ok: false, reason: 'whitespace' };
-    if (!trimmed.startsWith('AIza')) return { ok: false, reason: 'prefix' };
+    if (!trimmed.startsWith('AIza')) {
+        // Report what it actually begins with, by code point. An invisible
+        // character is indistinguishable from a correct key on screen, and
+        // without this the message just calls a correct-looking key wrong.
+        return {
+            ok: false,
+            reason: 'prefix',
+            startsWith: [...trimmed]
+                .slice(0, 4)
+                .map((c) => (/[ -~]/.test(c) ? c : `U+${c.codePointAt(0).toString(16).toUpperCase().padStart(4, '0')}`))
+                .join(''),
+        };
+    }
     if (trimmed.length !== 39) return { ok: false, reason: 'length', length: trimmed.length };
     if (!/^[A-Za-z0-9_-]+$/.test(trimmed)) return { ok: false, reason: 'charset' };
     return { ok: true, length: trimmed.length };
@@ -241,6 +257,7 @@ const SHAPE_HINTS = {
     empty: 'No API key is set.',
     whitespace: 'That key contains a space or line break. Paste it again without any surrounding text.',
     prefix: 'That does not look like a Google API key -- they begin with "AIza".',
+    charsetDetail: null,
     charset: 'That key contains characters a Google API key never has. It may have been autocorrected; try pasting it again.',
 };
 
@@ -251,7 +268,9 @@ export const testConnection = async (apiKey, { signal } = {}) => {
         const hint =
             shape.reason === 'length'
                 ? `That key is ${shape.length} characters; a Google API key is 39. It looks like the paste was cut short.`
-                : SHAPE_HINTS[shape.reason];
+                : shape.reason === 'prefix'
+                  ? `A Google API key begins with "AIza"; this one begins with "${shape.startsWith}".`
+                  : SHAPE_HINTS[shape.reason];
         return { ok: false, code: shape.reason === 'empty' ? 'no-key' : 'bad-key-shape', hint };
     }
     try {
