@@ -43,4 +43,3 @@ export const getPlacesByIds = async (ids) => {
     return rows.filter(Boolean);
 };
 
-export const countPlaces = async () => (await getDB()).count(STORES.places);

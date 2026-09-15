@@ -8,7 +8,6 @@ import { getDB, STORES } from './db.js';
  *  lookup rather than a Text Search.
  */
 
-export const getMatch = async (id) => (await getDB()).get(STORES.gmatch, id);
 
 export const getMatches = async (ids) => {
     const db = await getDB();

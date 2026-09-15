@@ -29,6 +29,11 @@
   --shadow-lift: 0 2px 4px rgba(35, 32, 31, 0.06), 0 18px 48px rgba(35, 32, 31, 0.14);
 
   --radius: 20px;
+
+  /* Used wherever an API key is shown or entered: in a UI typeface capital I
+     and lowercase l are the same stroke, which is how a mistyped key survives
+     visual checking. */
+  --mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
 }
 
 @media (prefers-color-scheme: dark) {

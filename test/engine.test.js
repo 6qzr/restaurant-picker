@@ -6,7 +6,9 @@ import { pickNext, similarity, passesConstraints } from '../src/engine/rank/mmr.
 import { encodeBoard, decodeBoard } from '../src/share/codec.js';
 import { normalizeElement } from '../src/engine/discovery/osmNormalize.js';
 import { scoreMatch, normalizeName, diceSimilarity } from '../src/engine/enrich/matcher.js';
-import { classifyError, QuotaError, inspectKeyShape, sanitizeKey } from '../src/engine/enrich/googlePlaces.js';
+import {
+    classifyError, QuotaError, inspectKeyShape, sanitizeKey, testConnection,
+} from '../src/engine/enrich/googlePlaces.js';
 import { coveringTiles, tileSizeKm, tileBBox, latToTileY, lonToTileX } from '../src/engine/discovery/tiles.js';
 import { quality, proximity } from '../src/engine/rank/score.js';
 import { mapsUrlFor, directionsUrlFor } from '../src/utils/format.js';
@@ -522,6 +524,62 @@ describe('api key sanitising', () => {
         expect(sanitizeKey(`
   ${GOOD}  
 `)).toBe(GOOD);
+    });
+
+    /** The failure that actually reached the user, on an iPhone with an Arabic
+     *  keyboard: an invisible directional mark lands in front of the key when
+     *  RTL and LTR text meet. The key looks perfectly correct on screen, and
+     *  startsWith('AIza') fails, so the app called a correct key wrong. */
+    it.each([
+        ['left-to-right mark', 0x200e],
+        ['right-to-left mark', 0x200f],
+        ['arabic letter mark', 0x061c],
+        ['left-to-right isolate', 0x2066],
+        ['pop directional isolate', 0x2069],
+    ])('strips a leading %s', (_label, code) => {
+        expect(sanitizeKey(ch(code) + GOOD)).toBe(GOOD);
+        expect(inspectKeyShape(ch(code) + GOOD).ok).toBe(true);
+    });
+
+    it.each([
+        ['left-to-right mark', 0x200e],
+        ['right-to-left mark', 0x200f],
+        ['arabic letter mark', 0x061c],
+    ])('strips an embedded %s', (_label, code) => {
+        expect(sanitizeKey(GOOD.slice(0, 12) + ch(code) + GOOD.slice(12))).toBe(GOOD);
+    });
+
+    it('names the actual leading characters when the prefix is genuinely wrong', () => {
+        const r = inspectKeyShape('xxAIzaSyEXAMPLE-NOT-A-REAL-KEY-01234567');
+        expect(r.reason).toBe('prefix');
+        expect(r.startsWith).toBe('xxAI');
+    });
+
+    /** The failure that actually happened: "AIza" was read off the screen and
+     *  typed as "Alza", because capital I and lowercase l are the same shape in
+     *  most UI typefaces -- including the one the error message was rendered in,
+     *  so the message could not be used to spot the mistake. */
+    it.each([
+        ['lowercase L', 'Alza', 'a lowercase L'],
+        ['digit one', 'A1za', 'a digit one'],
+        ['pipe', 'A|za', 'a pipe'],
+    ])('names %s specifically when typed where the capital i belongs', async (_label, prefix, expected) => {
+        const r = await testConnection(prefix + 'b'.repeat(35));
+        expect(r.code).toBe('bad-key-shape');
+        // Naming the wrong character matters: telling someone who typed a digit
+        // to look for a lowercase L sends them hunting a mistake that is not there.
+        expect(r.hint).toContain(`The second character is ${expected}`);
+        expect(r.hint).toMatch(/capital A, capital i, lowercase z, lowercase a/);
+    });
+
+    it('does not invent a lookalike when the prefix is simply wrong', async () => {
+        const r = await testConnection('zzzz' + 'b'.repeat(35));
+        expect(r.hint).not.toMatch(/second character is/);
+    });
+
+    it('spells out the prefix rather than only showing it', async () => {
+        const r = await testConnection('zzzz' + 'b'.repeat(35));
+        expect(r.hint).toMatch(/capital A, capital i, lowercase z, lowercase a/);
     });
 
     it('leaves a correct key untouched', () => {
