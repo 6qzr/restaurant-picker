@@ -1,7 +1,7 @@
 import { Car, Armchair } from 'lucide-react';
 import { CUISINE_CHIPS } from '../utils/cuisine.js';
 import { TEMPERATURE_DETENTS } from '../engine/rank/sample.js';
-import { SEARCH } from '../config.js';
+import { SEARCH, TILES, nearestRadiusStep } from '../config.js';
 import { Num } from './primitives/Bidi.jsx';
 
 /** Shared row so the two dials line up.
@@ -26,20 +26,44 @@ const DialRow = ({ label, value, children }) => (
 
 const RANGE_CLASS = 'flex-1 min-w-0 accent-[var(--gold)]';
 
-export const RadiusDial = ({ radiusKm, onChange }) => (
-    <DialRow label="Within" value={<Num>{radiusKm} km</Num>}>
-        <input
-            type="range"
-            min={SEARCH.minRadiusKm}
-            max={SEARCH.maxRadiusKm}
-            step={1}
-            value={radiusKm}
-            onChange={(e) => onChange(Number(e.target.value))}
-            className={RANGE_CLASS}
-            aria-label={`Search radius, ${radiusKm} kilometres`}
-        />
-    </DialRow>
-);
+/** Detents rather than every whole kilometre.
+ *
+ *  Most of a 1-50 slider's travel goes on distinctions nobody makes (37km vs
+ *  38km) while the ones people do make sit a pixel apart -- and each step
+ *  restarts the sweep, so a coarse tail is cheaper as well as easier to hit. */
+export const RadiusDial = ({ radiusKm, onChange }) => {
+    const steps = SEARCH.radiusSteps;
+    const idx = nearestRadiusStep(radiusKm);
+    const sampled = radiusKm > TILES.fullCoverageKm;
+
+    return (
+        <div className="flex flex-col gap-1.5">
+            <DialRow label="Within" value={<Num>{radiusKm} km</Num>}>
+                <input
+                    type="range"
+                    min={0}
+                    max={steps.length - 1}
+                    step={1}
+                    value={idx}
+                    onChange={(e) => onChange(steps[Number(e.target.value)])}
+                    className={RANGE_CLASS}
+                    aria-label={`Search radius, ${radiusKm} kilometres`}
+                />
+            </DialRow>
+            {/* Say what a wide search actually does. Past the covered disc we
+                probe a fan of areas rather than every street, and a picker that
+                quietly showed you a thin sample of somewhere as though it were
+                the whole place would be the same lie as the old header. */}
+            {sampled && (
+                <p className="text-xs ps-[4.25rem]" style={{ color: 'var(--ink-3)' }}>
+                    Past <Num>{TILES.fullCoverageKm} km</Num> we check a spread of areas in every
+                    direction rather than every street, so far-out picks are a sample. The first
+                    wide search takes a few minutes; you can spin while it runs.
+                </p>
+            )}
+        </div>
+    );
+};
 
 /** The dial that decides how far down the ranking the sampler is willing to
  *  reach. Labelled in plain language rather than as a temperature. */

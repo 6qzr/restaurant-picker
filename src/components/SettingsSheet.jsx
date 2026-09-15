@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { RotateCcw, Star, KeyRound, AlertTriangle, CheckCircle2, ExternalLink, Stethoscope, Loader2 } from 'lucide-react';
+import { RotateCcw, Star, KeyRound, AlertTriangle, CheckCircle2, ExternalLink, Stethoscope, Loader2, BookOpen, ChevronRight } from 'lucide-react';
 import Sheet from './primitives/Sheet.jsx';
 import { Bidi, Num } from './primitives/Bidi.jsx';
 import { listVetoed, clearVeto } from '../engine/history/seenStore.js';
@@ -34,7 +34,7 @@ const Toggle = ({ on, onChange, label }) => (
     </button>
 );
 
-export const SettingsSheet = ({ open, onClose, reduced, apiKey, showRatings, onShowRatings, onSetKey }) => {
+export const SettingsSheet = ({ open, onClose, reduced, apiKey, showRatings, onShowRatings, onSetKey, onOpenGuide }) => {
     const [vetoed, setVetoed] = useState([]);
     const [budget, setBudget] = useState(null);
     const [keyInput, setKeyInput] = useState('');
@@ -132,6 +132,24 @@ export const SettingsSheet = ({ open, onClose, reduced, apiKey, showRatings, onS
                     <p>Connected to Google. Ratings and photos are loading.</p>
                 </div>
             )}
+
+            <button
+                type="button"
+                onClick={onOpenGuide}
+                className="btn w-full flex items-center justify-between gap-4 py-3 border-b text-start"
+                style={{ borderColor: 'var(--line)' }}
+            >
+                <span className="flex items-center gap-2.5 min-w-0">
+                    <BookOpen className="w-4 h-4 shrink-0" style={{ color: 'var(--ink-3)' }} />
+                    <span className="min-w-0">
+                        <span className="block text-sm font-medium">How it works</span>
+                        <span className="block text-xs mt-0.5" style={{ color: 'var(--ink-3)' }}>
+                            The three cards, the dials, and the gestures.
+                        </span>
+                    </span>
+                </span>
+                <ChevronRight className="w-4 h-4 shrink-0" style={{ color: 'var(--ink-3)' }} />
+            </button>
 
             <Row
                 label="Show ratings"

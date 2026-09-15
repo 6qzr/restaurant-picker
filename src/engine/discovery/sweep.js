@@ -75,8 +75,13 @@ export const createSweep = ({ onBatch, onProgress } = {}) => {
         }
 
         // 2. Ring-lazy: tiles are already ordered centre-outwards, so stopping
-        //    early leaves no hole in the middle.
+        //    early leaves no hole in the middle. The stop distance is measured
+        //    against the exhaustively-swept core rather than the requested
+        //    radius -- scaled to the radius, a 30km search gave up 12km out and
+        //    threw away the far probes that are the whole point of asking for
+        //    30km.
         const ringLazy = radiusKm > TILES.ringLazyAboveKm;
+        const coreStopKm = Math.min(radiusKm, TILES.fullCoverageKm) * 0.4;
         let fetched = 0;
         let failed = 0;
         let stop = false;
@@ -91,7 +96,10 @@ export const createSweep = ({ onBatch, onProgress } = {}) => {
         const tailQueue = [];
 
         const worker = async (tile) => {
-            if (stop || signal.aborted) return;
+            // `stop` retires the dense core once it has produced enough. The
+            // sampled far-field probes are exempt: they are few, deliberate,
+            // and each one covers a direction nothing else does.
+            if ((stop && !tile.sampled) || signal.aborted) return;
             try {
                 const { elements, mirror } = await runQuery(buildCoreQuery(tile.bbox), { signal });
                 const places = normalizeElements(elements, tile.id);
@@ -114,7 +122,12 @@ export const createSweep = ({ onBatch, onProgress } = {}) => {
 
                 tailQueue.push(tile);
 
-                if (ringLazy && pool.size >= TILES.earlyStopNamedCount && tile.distanceKm > radiusKm * 0.4) {
+                if (
+                    ringLazy &&
+                    !tile.sampled &&
+                    pool.size >= TILES.earlyStopNamedCount &&
+                    tile.distanceKm > coreStopKm
+                ) {
                     stop = true;
                 }
             } catch (err) {
