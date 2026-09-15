@@ -1,4 +1,4 @@
-import { fetchDetails, resolveByText, QuotaError } from './googlePlaces.js';
+import { fetchDetails, resolveByText, QuotaError, EnrichmentError } from './googlePlaces.js';
 import { getMatches, putMatch, putMiss } from '../../data/gmatchRepo.js';
 import { getBudget, totalCalls } from '../../data/budgetRepo.js';
 
@@ -16,8 +16,14 @@ const inflight = new Map();
 export const getCached = (id) => memory.get(id);
 export const clearMemory = () => memory.clear();
 
-let disabledReason = null;
-export const enrichmentStatus = () => disabledReason;
+/** Why enrichment is not producing results, in a form the UI can explain.
+ *  A silent failure is the worst outcome for a bring-your-own-key app: the
+ *  user has no way to tell a wrong key from a disabled API from no key at all. */
+let status = { code: 'idle', hint: null, docsUrl: null, at: null };
+export const enrichmentStatus = () => status;
+const setStatus = (code, hint = null, docsUrl = null) => {
+    status = { code, hint, docsUrl, at: Date.now() };
+};
 
 const MOCK = import.meta.env?.VITE_ENRICH_MODE === 'mock';
 
@@ -68,12 +74,17 @@ const enrichOne = async (place, opts) => {
             memory.set(place.id, resolved.enrichment);
             return resolved.enrichment;
         } catch (err) {
+            if (err?.name === 'AbortError') return null;
             if (err instanceof QuotaError) {
-                disabledReason = 'quota';
-                // Enrichment is additive: the app keeps working without it.
+                setStatus('quota', 'Google quota reached. Still finding places from OpenStreetMap.');
                 return null;
             }
-            if (err?.name === 'AbortError') return null;
+            if (err instanceof EnrichmentError) {
+                setStatus(err.code, err.hint, err.docsUrl);
+                return null;
+            }
+            // Network-level failure: fetch rejects with a TypeError and no status.
+            setStatus('network', 'Could not reach Google. Check your connection.');
             console.warn('[enrich] failed for', place.id, err?.message);
             return null;
         } finally {
@@ -96,21 +107,29 @@ export const enrichPlaces = async (places, opts = {}) => {
 
     if (!MOCK) {
         if (!opts.apiKey) {
-            disabledReason = 'no-key';
+            setStatus('no-key', 'No Google key set, so there are no ratings or photos.');
             return out;
         }
         const budget = await getBudget();
         if (opts.monthlyCap && totalCalls(budget) >= opts.monthlyCap) {
-            disabledReason = 'quota';
+            setStatus('capped', 'Monthly lookup cap reached. Still finding places from OpenStreetMap.');
             return out;
         }
         opts.matches = await getMatches(places.map((p) => p.id));
     }
 
-    disabledReason = null;
+    setStatus('working');
     const results = await Promise.all(places.map((p) => enrichOne(p, opts)));
     places.forEach((p, i) => {
         if (results[i]) out.set(p.id, results[i]);
     });
+
+    // Every lookup came back empty with no error raised: the key works, but
+    // nothing matched. Worth saying so rather than looking broken.
+    if (status.code === 'working' && results.every((r) => !r)) {
+        setStatus('no-match', 'Connected to Google, but none of these places could be matched confidently.');
+    } else if (status.code === 'working') {
+        setStatus('ok');
+    }
     return out;
 };

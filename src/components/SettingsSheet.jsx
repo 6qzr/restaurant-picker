@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { RotateCcw, Star, KeyRound } from 'lucide-react';
+import { RotateCcw, Star, KeyRound, AlertTriangle, CheckCircle2, ExternalLink } from 'lucide-react';
 import Sheet from './primitives/Sheet.jsx';
 import { Bidi, Num } from './primitives/Bidi.jsx';
 import { listVetoed, clearVeto } from '../engine/history/seenStore.js';
@@ -37,11 +37,13 @@ export const SettingsSheet = ({ open, onClose, reduced, apiKey, showRatings, onS
     const [vetoed, setVetoed] = useState([]);
     const [budget, setBudget] = useState(null);
     const [keyInput, setKeyInput] = useState('');
+    const [status, setStatus] = useState(null);
 
     useEffect(() => {
         if (!open) return;
         listVetoed().then(setVetoed).catch(() => setVetoed([]));
         getBudget().then(setBudget).catch(() => setBudget(null));
+        setStatus(enrichmentStatus());
         setKeyInput('');
     }, [open]);
 
@@ -50,10 +52,51 @@ export const SettingsSheet = ({ open, onClose, reduced, apiKey, showRatings, onS
         setVetoed(await listVetoed());
     };
 
-    const status = enrichmentStatus();
+
+    const OK_CODES = ['ok', 'idle', 'working'];
+    const showBanner = status && !OK_CODES.includes(status.code);
 
     return (
         <Sheet open={open} onClose={onClose} title="Settings" reduced={reduced}>
+            {/* A bring-your-own-key app that fails silently is unusable -- the
+                user cannot tell a wrong key from a disabled API. Say which. */}
+            {showBanner && (
+                <div
+                    className="rounded-xl p-3 mb-4 flex gap-2.5 text-xs"
+                    style={{
+                        background: status.code === 'no-key' ? 'var(--surface-2)' : 'rgba(194,69,47,0.10)',
+                        color: 'var(--ink-2)',
+                    }}
+                >
+                    <AlertTriangle
+                        className="w-4 h-4 shrink-0 mt-0.5"
+                        style={{ color: status.code === 'no-key' ? 'var(--ink-3)' : 'var(--danger)' }}
+                    />
+                    <div className="min-w-0">
+                        <p style={{ color: 'var(--ink)' }}>{status.hint}</p>
+                        {status.docsUrl && (
+                            <a
+                                href={status.docsUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 mt-1.5 underline"
+                                style={{ color: 'var(--gold)' }}
+                            >
+                                Enable it in Google Cloud <ExternalLink className="w-3 h-3" />
+                            </a>
+                        )}
+                    </div>
+                </div>
+            )}
+
+            {status?.code === 'ok' && (
+                <div className="rounded-xl p-3 mb-4 flex gap-2.5 text-xs"
+                    style={{ background: 'var(--surface-2)', color: 'var(--ink-2)' }}>
+                    <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" style={{ color: 'var(--accent)' }} />
+                    <p>Connected to Google. Ratings and photos are loading.</p>
+                </div>
+            )}
+
             <Row
                 label="Show ratings"
                 hint={
@@ -96,7 +139,7 @@ export const SettingsSheet = ({ open, onClose, reduced, apiKey, showRatings, onS
             )}
 
             {budget && (
-                <Row label="Google lookups this month" hint={status === 'quota' ? 'Paused — running on OpenStreetMap alone.' : 'Only the cards you actually see are looked up.'}>
+                <Row label="Google lookups this month" hint="Only the cards you actually see are looked up.">
                     <Num className="text-sm font-semibold tabular-nums">{totalCalls(budget)}</Num>
                 </Row>
             )}

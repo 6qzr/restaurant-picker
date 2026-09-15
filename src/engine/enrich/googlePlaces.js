@@ -24,6 +24,68 @@ const fieldMask = (withRatings, prefix = '') =>
 
 export class QuotaError extends Error {}
 
+/** A Google rejection we can explain to the user.
+ *
+ *  `code` is a stable slug the UI switches on; `hint` is the sentence shown to
+ *  the user; `docsUrl` is where they go to fix it.
+ */
+export class EnrichmentError extends Error {
+    constructor(code, hint, { status, googleStatus, docsUrl } = {}) {
+        super(hint);
+        this.name = 'EnrichmentError';
+        this.code = code;
+        this.hint = hint;
+        this.status = status;
+        this.googleStatus = googleStatus;
+        this.docsUrl = docsUrl;
+    }
+}
+
+const ENABLE_URL = 'https://console.cloud.google.com/apis/library/places.googleapis.com';
+
+/** Turn Google's error payload into something actionable.
+ *
+ *  This matters more than it looks: "Places API (New)" is a SEPARATE service
+ *  from the legacy "Places API", so a project set up for the old Maps
+ *  JavaScript stack rejects every call here with SERVICE_DISABLED -- and
+ *  because the call never reaches an enabled API, it shows up as zero traffic
+ *  in the Cloud console, which looks like the app never tried.
+ */
+export const classifyError = (status, payload) => {
+    const err = payload?.error ?? {};
+    const msg = String(err.message ?? '');
+    const gStatus = err.status ?? '';
+    const reason = err.details?.find((d) => d.reason)?.reason ?? '';
+
+    if (reason === 'API_KEY_INVALID' || /API key not valid/i.test(msg)) {
+        return new EnrichmentError('invalid-key', 'That API key is not valid.', { status, googleStatus: gStatus });
+    }
+    if (reason === 'SERVICE_DISABLED' || /has not been used in project|is disabled/i.test(msg)) {
+        return new EnrichmentError(
+            'not-enabled',
+            'Places API (New) is not enabled on your Google Cloud project. It is a separate service from the older "Places API".',
+            { status, googleStatus: gStatus, docsUrl: ENABLE_URL }
+        );
+    }
+    if (reason === 'API_KEY_HTTP_REFERRER_BLOCKED' || /referer|referrer/i.test(msg)) {
+        return new EnrichmentError(
+            'referrer-blocked',
+            `This key is restricted to a different site. Add ${globalThis.location?.origin ?? 'this site'}/* to its allowed HTTP referrers.`,
+            { status, googleStatus: gStatus }
+        );
+    }
+    if (reason === 'BILLING_DISABLED' || /billing/i.test(msg)) {
+        return new EnrichmentError('billing', 'Billing is not enabled on this Google Cloud project.', { status, googleStatus: gStatus });
+    }
+    if (status === 429 || gStatus === 'RESOURCE_EXHAUSTED') {
+        return new QuotaError('Google Places quota exhausted');
+    }
+    if (status === 403) {
+        return new EnrichmentError('forbidden', msg || 'Google refused this request.', { status, googleStatus: gStatus });
+    }
+    return new EnrichmentError('error', msg || `Google Places returned ${status}.`, { status, googleStatus: gStatus });
+};
+
 const request = async (url, { apiKey, mask, method = 'GET', body, signal }) => {
     const res = await fetch(url, {
         method,
@@ -35,10 +97,18 @@ const request = async (url, { apiKey, mask, method = 'GET', body, signal }) => {
         body: body ? JSON.stringify(body) : undefined,
         signal,
     });
-    if (res.status === 429 || res.status === 403) {
-        throw new QuotaError(`Google Places ${res.status}`);
+
+    if (!res.ok) {
+        // Read the body before throwing: Google puts the actual reason in there,
+        // and without it every failure looks identical to the user.
+        let payload = null;
+        try {
+            payload = await res.json();
+        } catch {
+            /* non-JSON error page */
+        }
+        throw classifyError(res.status, payload);
     }
-    if (!res.ok) throw new Error(`Google Places ${res.status}`);
     return res.json();
 };
 
