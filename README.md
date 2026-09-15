@@ -65,6 +65,16 @@ ratings or photos.
 To add ratings and photos, copy `.env.example` to `.env` and set
 `VITE_GOOGLE_MAPS_API_KEY`, or paste a key in the app's setup screen.
 
+> **Enable the right API.** This app uses **Places API (New)**
+> (`places.googleapis.com`), which is a *separate service* from the older
+> "Places API" and must be enabled on its own:
+> [console.cloud.google.com/apis/library/places.googleapis.com](https://console.cloud.google.com/apis/library/places.googleapis.com).
+> A project set up for the legacy Maps JavaScript stack will reject every call
+> with `SERVICE_DISABLED` — and because the request never reaches an enabled
+> API, the Cloud console shows **zero traffic**, which looks like the app never
+> tried. If ratings are missing, open Settings in the app: it names the exact
+> reason.
+
 > Anything prefixed `VITE_` is inlined into the built JavaScript, so a key in
 > `.env` is **public on any deployed build**. That is only acceptable if you
 > also restrict the key in Google Cloud Console — by HTTP referrer to your own

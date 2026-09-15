@@ -6,6 +6,7 @@ import { pickNext, similarity } from '../src/engine/rank/mmr.js';
 import { encodeBoard, decodeBoard } from '../src/share/codec.js';
 import { normalizeElement } from '../src/engine/discovery/osmNormalize.js';
 import { scoreMatch, normalizeName, diceSimilarity } from '../src/engine/enrich/matcher.js';
+import { classifyError, QuotaError } from '../src/engine/enrich/googlePlaces.js';
 import { coveringTiles, tileSizeKm, tileBBox, latToTileY, lonToTileX } from '../src/engine/discovery/tiles.js';
 import { quality, proximity } from '../src/engine/rank/score.js';
 
@@ -323,5 +324,39 @@ describe('scoring', () => {
         const mid = proximity(3.5, 5, true);
         expect(mid).toBeGreaterThan(proximity(0.5, 5, true));
         expect(mid).toBeGreaterThan(proximity(5, 5, true));
+    });
+});
+
+describe('google error classification', () => {
+    const payload = (status, message, reason) => ({
+        error: { code: status, status: 'PERMISSION_DENIED', message, details: reason ? [{ reason }] : [] },
+    });
+
+    /** The failure that actually happened in production: a project set up for
+     *  the legacy Maps stack rejects every Places API (New) call, and because
+     *  the call never reaches an enabled API it shows as zero traffic in the
+     *  Cloud console -- indistinguishable from the app never trying. */
+    it('identifies a disabled Places API (New) and links to the fix', () => {
+        const e = classifyError(403, payload(403, 'Places API (New) has not been used in project 1 before or it is disabled.', 'SERVICE_DISABLED'));
+        expect(e.code).toBe('not-enabled');
+        expect(e.docsUrl).toContain('places.googleapis.com');
+    });
+
+    it.each([
+        ['API key not valid. Please pass a valid API key.', 'API_KEY_INVALID', 'invalid-key'],
+        ['Requests from referer http://x are blocked.', 'API_KEY_HTTP_REFERRER_BLOCKED', 'referrer-blocked'],
+        ['Billing has not been enabled for this project.', 'BILLING_DISABLED', 'billing'],
+    ])('classifies %s', (message, reason, expected) => {
+        expect(classifyError(403, payload(403, message, reason)).code).toBe(expected);
+    });
+
+    it('treats 429 as quota, not as a configuration problem', () => {
+        expect(classifyError(429, payload(429, 'Quota exceeded'))).toBeInstanceOf(QuotaError);
+    });
+
+    it('still produces something actionable for an unrecognised failure', () => {
+        const e = classifyError(500, null);
+        expect(e.code).toBe('error');
+        expect(e.hint).toMatch(/500/);
     });
 });
