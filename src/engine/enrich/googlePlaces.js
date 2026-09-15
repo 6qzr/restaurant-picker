@@ -165,3 +165,45 @@ export const resolveByText = async (place, { apiKey, withRatings, signal, langua
     if (!match) return null;
     return { enrichment: toEnrichment(match.google, apiKey), confidence: match.match.score };
 };
+
+/**
+ * One deliberate round-trip to Google, to answer "why am I not seeing ratings?"
+ *
+ * Worth its own function because the normal enrichment path is fire-and-forget
+ * and swallows failures by design -- the board must never break because a
+ * rating did not arrive. That is right for the happy path and useless for
+ * diagnosis, so this asks the question directly and reports the answer.
+ *
+ * Deliberately uses the cheapest possible field mask: this is a diagnostic, not
+ * a lookup, and it should never land on an expensive SKU.
+ */
+export const testConnection = async (apiKey, { signal } = {}) => {
+    if (!apiKey) {
+        return { ok: false, code: 'no-key', hint: 'No API key is set.' };
+    }
+    try {
+        await request(`${BASE}/places:searchText`, {
+            apiKey,
+            method: 'POST',
+            mask: 'places.id',
+            signal,
+            body: { textQuery: 'cafe', maxResultCount: 1 },
+        });
+        return { ok: true, code: 'ok', hint: 'Your key works. Ratings and photos will load.' };
+    } catch (err) {
+        if (err?.name === 'AbortError') return { ok: false, code: 'aborted', hint: 'Cancelled.' };
+        if (err instanceof QuotaError) {
+            return { ok: false, code: 'quota', hint: 'Quota exhausted for this key.' };
+        }
+        if (err instanceof EnrichmentError) {
+            return { ok: false, code: err.code, hint: err.hint, docsUrl: err.docsUrl, googleStatus: err.googleStatus };
+        }
+        // fetch() rejects with a TypeError and no status when the request never
+        // reaches Google at all -- offline, DNS, or a blocking extension.
+        return {
+            ok: false,
+            code: 'network',
+            hint: 'The request never reached Google. Check your connection, or an ad/privacy blocker.',
+        };
+    }
+};

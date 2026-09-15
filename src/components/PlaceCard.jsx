@@ -2,7 +2,8 @@ import { Star, Navigation, RefreshCw, X, ThumbsUp, ThumbsDown, Clock, ShoppingBa
 import { Bidi, Num } from './primitives/Bidi.jsx';
 import { cuisineLabel } from '../utils/cuisine.js';
 import {
-    formatDistance, formatCount, formatRating, travelEstimate, gradientFor, glyphFor, readableHours,
+    formatDistance, formatCount, formatRating, travelEstimate, gradientFor, glyphFor,
+    readableHours, mapsUrlFor,
 } from '../utils/format.js';
 
 const LANE_TINT = {
@@ -25,8 +26,9 @@ export const PlaceCard = ({ slot, enrichment, onVote, userVote, onSwap, onVeto, 
     const travel = travelEstimate(metrics?.distKm);
     const hours = readableHours(place.tags?.opening_hours);
 
-    // No Place ID required, so this works with no Google key at all.
-    const mapHref = `https://www.google.com/maps/search/?api=1&query=${place.lat}%2C${place.lon}`;
+    // Opens the actual listing. Falls back to a name search centred on the
+    // coordinates when there is no Place ID, rather than a bare pin.
+    const mapHref = mapsUrlFor(place, enrichment);
 
     return (
         <article className="card flex flex-col overflow-hidden h-full select-none">
