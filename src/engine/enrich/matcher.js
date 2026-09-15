@@ -77,7 +77,27 @@ const haversineM = (aLat, aLon, bLat, bLon) => {
 
 export const ACCEPT_THRESHOLD = 0.62;
 const MAX_DISTANCE_M = 300;
-const CROSS_SCRIPT_MAX_M = 26;
+
+/** Below this, position alone is near-conclusive.
+ *
+ *  Tuned against 45 real Google responses for Muscat. The weighted score is too
+ *  strict when a listing sits on top of the target but formats its name
+ *  differently -- "Pizza Hut" vs "Pizza Hut | Al Khuwair Oman Oil" at 9m scored
+ *  0.61 against a 0.62 threshold. Google was asked for this specific name near
+ *  this specific point, so a hit this close is the same business. */
+const COINCIDENT_M = 40;
+const COINCIDENT_MIN_SIM = 0.22;
+
+/** Inside this radius the two records are in the same building footprint, and
+ *  the OSM name is often a generic descriptor rather than the trading name
+ *  ("مطعم للمأكولات العمانية" -- "restaurant for Omani food" -- against
+ *  "Ashtaar Restaurant"). Name agreement cannot be required here. */
+const SAME_BUILDING_M = 12;
+
+/** Cross-script pairs cannot be compared as strings at all, so they lean
+ *  entirely on position. 26m proved too tight: "استار بكس" and "Starbucks" are the
+ *  same shop 50m apart in the two datasets. */
+const CROSS_SCRIPT_MAX_M = 60;
 
 /**
  * @returns {{score:number, accepted:boolean, distanceM:number, reason:string}}
@@ -124,6 +144,16 @@ export const scoreMatch = (osmPlace, googlePlace) => {
     }
 
     const score = 0.55 * nameSim + 0.35 * proxScore + 0.1 * categoryAgree;
+
+    // Position overrides the weighted score when the two records are
+    // effectively on the same spot.
+    if (distanceM <= SAME_BUILDING_M) {
+        return { score: Math.max(score, ACCEPT_THRESHOLD), accepted: true, distanceM, reason: 'same-building' };
+    }
+    if (distanceM <= COINCIDENT_M && nameSim >= COINCIDENT_MIN_SIM) {
+        return { score: Math.max(score, ACCEPT_THRESHOLD), accepted: true, distanceM, reason: 'coincident' };
+    }
+
     return {
         score,
         accepted: score >= ACCEPT_THRESHOLD,

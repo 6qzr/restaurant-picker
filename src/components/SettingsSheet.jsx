@@ -138,8 +138,7 @@ export const SettingsSheet = ({ open, onClose, reduced, apiKey, showRatings, onS
                 </button>
             )}
 
-            {!apiKey && (
-                <form
+            <form
                     className="flex gap-2 py-3"
                     onSubmit={(e) => {
                         e.preventDefault();
@@ -150,16 +149,25 @@ export const SettingsSheet = ({ open, onClose, reduced, apiKey, showRatings, onS
                         type="password"
                         value={keyInput}
                         onChange={(e) => setKeyInput(e.target.value)}
-                        placeholder="Paste a Places API key"
+                        placeholder={apiKey ? 'Paste a different key to replace it' : 'Paste a Places API key'}
                         autoComplete="off"
                         className="flex-1 h-10 px-3 rounded-xl border text-sm"
                         style={{ borderColor: 'var(--line)', background: 'var(--surface-2)', color: 'var(--ink)' }}
                     />
-                    <button type="submit" className="btn px-4 h-10 text-sm border" style={{ borderColor: 'var(--line)' }}>
-                        Save
+                <button type="submit" className="btn px-4 h-10 text-sm border" style={{ borderColor: 'var(--line)' }}>
+                    Save
+                </button>
+                {apiKey && (
+                    <button
+                        type="button"
+                        onClick={() => { onSetKey(''); setKeyInput(''); setStatus(null); }}
+                        className="btn px-3 h-10 text-sm border"
+                        style={{ borderColor: 'var(--line)', color: 'var(--danger)' }}
+                    >
+                        Remove
                     </button>
-                </form>
-            )}
+                )}
+            </form>
 
             {budget && (
                 <Row label="Google lookups this month" hint="Only the cards you actually see are looked up.">
