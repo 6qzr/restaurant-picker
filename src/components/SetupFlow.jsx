@@ -12,7 +12,10 @@ export const SetupFlow = ({ onDone }) => {
     const [showKeyStep, setShowKeyStep] = useState(false);
     const [copied, setCopied] = useState(false);
 
-    const referrer = `${globalThis.location?.origin ?? 'http://localhost:5173'}/*`;
+    // No hardcoded fallback origin. A dev URL has no business appearing in the
+    // setup copy of a deployed site.
+    const origin = globalThis.location?.origin ?? '';
+    const referrer = origin ? `${origin}/*` : 'your site address, followed by /*';
 
     const copyReferrer = async () => {
         try {
