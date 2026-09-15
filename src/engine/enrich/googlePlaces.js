@@ -81,7 +81,10 @@ export const classifyError = (status, payload) => {
     if (reason === 'API_KEY_HTTP_REFERRER_BLOCKED' || /referer|referrer/i.test(msg)) {
         return new EnrichmentError(
             'referrer-blocked',
-            `This key is restricted to a different site. Add ${globalThis.location?.origin ?? 'this site'}/* to its allowed HTTP referrers.`,
+            // Always the site the user is actually on, never a hardcoded dev URL.
+            globalThis.location?.origin
+                ? `This key is restricted to a different site. Add ${globalThis.location.origin}/* to its allowed HTTP referrers.`
+                : 'This key is restricted to a different site. Add this site’s address to its allowed HTTP referrers.',
             { status, googleStatus: gStatus }
         );
     }
