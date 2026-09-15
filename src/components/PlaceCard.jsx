@@ -1,4 +1,4 @@
-import { Star, Navigation, RefreshCw, X, ThumbsUp, ThumbsDown, Clock, ShoppingBag, Sun } from 'lucide-react';
+import { Star, Navigation, RefreshCw, X, ThumbsUp, ThumbsDown, Clock, ShoppingBag, Sun, Compass } from 'lucide-react';
 import { Bidi, Num } from './primitives/Bidi.jsx';
 import { cuisineLabel } from '../utils/cuisine.js';
 import {
@@ -79,13 +79,22 @@ export const PlaceCard = ({ slot, enrichment, onVote, userVote, onSwap, onVeto, 
                     </button>
                 </div>
 
-                {rating != null && (
+                {rating != null ? (
                     <div className="absolute bottom-2.5 start-3 flex items-center gap-1 text-white">
                         <Star className="w-3.5 h-3.5 fill-current" style={{ color: '#f2c14e' }} />
                         <Num className="font-semibold text-sm">{formatRating(rating)}</Num>
                         {enrichment.userRatingCount != null && (
                             <Num className="text-xs opacity-85">({formatCount(enrichment.userRatingCount)})</Num>
                         )}
+                    </div>
+                ) : (
+                    /* Roughly a quarter of the places OpenStreetMap knows about
+                       have no Google listing at all -- they are the small local
+                       spots worth finding. Say so, rather than leaving a gap
+                       where a rating obviously should be. */
+                    <div className="absolute bottom-2.5 start-3 flex items-center gap-1.5 text-white/90">
+                        <Compass className="w-3.5 h-3.5" />
+                        <span className="text-[0.6875rem] font-medium">Not listed on Google</span>
                     </div>
                 )}
             </div>

@@ -4,9 +4,30 @@ import { TEMPERATURE_DETENTS } from '../engine/rank/sample.js';
 import { SEARCH } from '../config.js';
 import { Num } from './primitives/Bidi.jsx';
 
-export const RadiusDial = ({ radiusKm, onChange }) => (
+/** Shared row so the two dials line up.
+ *
+ *  They previously set their own label and value widths ("Within" vs "Mood",
+ *  w-12 vs w-24), so the flex-1 track between them came out a different length
+ *  on each row and the thumbs sat at different offsets. Fixed columns at both
+ *  ends keep the tracks identical, and sharing one component stops them
+ *  drifting apart again.
+ */
+const DialRow = ({ label, value, children }) => (
     <label className="flex items-center gap-3 w-full">
-        <span className="meta shrink-0" style={{ color: 'var(--ink-3)' }}>Within</span>
+        <span className="meta shrink-0 w-14" style={{ color: 'var(--ink-3)' }}>
+            {label}
+        </span>
+        {children}
+        <span className="text-sm font-semibold tabular-nums shrink-0 w-[5.5rem] text-end">
+            {value}
+        </span>
+    </label>
+);
+
+const RANGE_CLASS = 'flex-1 min-w-0 accent-[var(--gold)]';
+
+export const RadiusDial = ({ radiusKm, onChange }) => (
+    <DialRow label="Within" value={<Num>{radiusKm} km</Num>}>
         <input
             type="range"
             min={SEARCH.minRadiusKm}
@@ -14,23 +35,24 @@ export const RadiusDial = ({ radiusKm, onChange }) => (
             step={1}
             value={radiusKm}
             onChange={(e) => onChange(Number(e.target.value))}
-            className="flex-1 accent-[var(--gold)]"
+            className={RANGE_CLASS}
             aria-label={`Search radius, ${radiusKm} kilometres`}
         />
-        <Num className="text-sm font-semibold tabular-nums shrink-0 w-12 text-end">{radiusKm} km</Num>
-    </label>
+    </DialRow>
 );
 
 /** The dial that decides how far down the ranking the sampler is willing to
  *  reach. Labelled in plain language rather than as a temperature. */
 export const SurpriseDial = ({ temperature, onChange }) => {
     const idx = TEMPERATURE_DETENTS.reduce(
-        (best, d, i) => (Math.abs(d.value - temperature) < Math.abs(TEMPERATURE_DETENTS[best].value - temperature) ? i : best),
+        (best, d, i) =>
+            Math.abs(d.value - temperature) < Math.abs(TEMPERATURE_DETENTS[best].value - temperature)
+                ? i
+                : best,
         0
     );
     return (
-        <label className="flex items-center gap-3 w-full">
-            <span className="meta shrink-0" style={{ color: 'var(--ink-3)' }}>Mood</span>
+        <DialRow label="Mood" value={TEMPERATURE_DETENTS[idx].label}>
             <input
                 type="range"
                 min={0}
@@ -38,13 +60,10 @@ export const SurpriseDial = ({ temperature, onChange }) => {
                 step={1}
                 value={idx}
                 onChange={(e) => onChange(TEMPERATURE_DETENTS[Number(e.target.value)].value)}
-                className="flex-1 accent-[var(--gold)]"
+                className={RANGE_CLASS}
                 aria-label={`Adventurousness: ${TEMPERATURE_DETENTS[idx].label}`}
             />
-            <span className="text-sm font-semibold shrink-0 w-24 text-end">
-                {TEMPERATURE_DETENTS[idx].label}
-            </span>
-        </label>
+        </DialRow>
     );
 };
 
