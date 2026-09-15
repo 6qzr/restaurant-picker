@@ -42,6 +42,7 @@ export class EnrichmentError extends Error {
 }
 
 const ENABLE_URL = 'https://console.cloud.google.com/apis/library/places.googleapis.com';
+const CREDENTIALS_URL = 'https://console.cloud.google.com/apis/credentials';
 
 /** Turn Google's error payload into something actionable.
  *
@@ -59,6 +60,16 @@ export const classifyError = (status, payload) => {
 
     if (reason === 'API_KEY_INVALID' || /API key not valid/i.test(msg)) {
         return new EnrichmentError('invalid-key', 'That API key is not valid.', { status, googleStatus: gStatus });
+    }
+    // Distinct from SERVICE_DISABLED: here the API may well be enabled on the
+    // project, but THIS KEY's "API restrictions" list does not include it. Seen
+    // in the wild on a key originally scoped to the Maps JavaScript API.
+    if (reason === 'API_KEY_SERVICE_BLOCKED' || /Requests to this API .* are blocked/i.test(msg)) {
+        return new EnrichmentError(
+            'key-restricted',
+            'This key is not allowed to call Places API (New). Open the key in Google Cloud, and under "API restrictions" add Places API (New) to the allowed list.',
+            { status, googleStatus: gStatus, docsUrl: CREDENTIALS_URL }
+        );
     }
     if (reason === 'SERVICE_DISABLED' || /has not been used in project|is disabled/i.test(msg)) {
         return new EnrichmentError(

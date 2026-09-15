@@ -343,6 +343,16 @@ describe('google error classification', () => {
         expect(e.docsUrl).toContain('places.googleapis.com');
     });
 
+    /** Seen on the real deployment: the key was scoped to the Maps JavaScript
+     *  API, so Places API (New) was refused by the KEY rather than missing from
+     *  the project -- a different fix, and previously indistinguishable. */
+    it('separates a key-restriction block from a disabled API', () => {
+        const e = classifyError(403, payload(403, 'Requests to this API places.googleapis.com method google.maps.places.v1.Places.SearchText are blocked.', 'API_KEY_SERVICE_BLOCKED'));
+        expect(e.code).toBe('key-restricted');
+        expect(e.hint).toMatch(/API restrictions/i);
+        expect(e.docsUrl).toContain('credentials');
+    });
+
     it.each([
         ['API key not valid. Please pass a valid API key.', 'API_KEY_INVALID', 'invalid-key'],
         ['Requests from referer http://x are blocked.', 'API_KEY_HTTP_REFERRER_BLOCKED', 'referrer-blocked'],
