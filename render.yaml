@@ -1,0 +1,75 @@
+# Render static site configuration.
+#
+# Deploying a PWA to a CDN has one classic failure mode: the service worker and
+# index.html get cached, so a deploy lands but returning visitors stay on the
+# old app indefinitely. The header rules below are what prevent that.
+
+services:
+  - type: web
+    runtime: static
+    name: chefs-choice
+    # `npm ci` installs exactly what package-lock.json pins, so a build is
+    # reproducible rather than picking up whatever is newest that day.
+    buildCommand: npm ci && npm run build
+    staticPublishPath: ./dist
+    pullRequestPreviewsEnabled: true
+
+    headers:
+      # Vite content-hashes everything under /assets, so the filename changes
+      # whenever the bytes do. These can safely be cached forever.
+      - path: /assets/*
+        name: Cache-Control
+        value: public, max-age=31536000, immutable
+
+      # These four must NOT be cached hard. index.html is what points at the
+      # current hashed bundles, and sw.js is what decides whether a returning
+      # visitor ever sees a new deploy at all. Cache either one and the site
+      # appears frozen no matter how many times you redeploy.
+      - path: /index.html
+        name: Cache-Control
+        value: public, max-age=0, must-revalidate
+      - path: /sw.js
+        name: Cache-Control
+        value: public, max-age=0, must-revalidate
+      - path: /registerSW.js
+        name: Cache-Control
+        value: public, max-age=0, must-revalidate
+      - path: /manifest.webmanifest
+        name: Cache-Control
+        value: public, max-age=0, must-revalidate
+
+      # Icons are referenced by fixed names from the manifest, so they cannot be
+      # immutable, but a day of caching is harmless.
+      - path: /icons/*
+        name: Cache-Control
+        value: public, max-age=86400
+
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
+      - path: /*
+        name: X-Frame-Options
+        value: DENY
+
+      # Deliberately NOT `no-referrer`, tempting as that is for a location app.
+      # Google's HTTP-referrer key restriction works by reading the Referer
+      # header -- suppress it and every Places call gets rejected. This policy
+      # sends only the origin cross-origin, which satisfies that restriction
+      # while still withholding the path. The share link keeps its coordinates
+      # in the hash fragment, which is never transmitted either way.
+      - path: /*
+        name: Referrer-Policy
+        value: strict-origin-when-cross-origin
+
+      # The app asks for location; nothing else needs a powerful feature.
+      - path: /*
+        name: Permissions-Policy
+        value: geolocation=(self), camera=(), microphone=(), payment=()
+
+    routes:
+      # Render skips rewrite rules when a real file exists at the path, so this
+      # catch-all cannot shadow /sw.js, /assets/* or the icons. It only catches
+      # stray paths, which should land on the app rather than a 404.
+      - type: rewrite
+        source: /*
+        destination: /index.html

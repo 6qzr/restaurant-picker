@@ -1,8 +1,19 @@
 /** Rasterize the app icon. Chrome's installability criteria and iOS both want
  *  real PNGs -- an SVG-only manifest means no install prompt and a screenshot
  *  for the home-screen icon. */
-import sharp from 'sharp';
 import fs from 'node:fs';
+
+// sharp is NOT a project dependency. The generated icons are committed, so a
+// deploy build has no reason to install a ~50MB native image library. Install
+// it only when you actually need to regenerate them.
+let sharp;
+try {
+    ({ default: sharp } = await import('sharp'));
+} catch {
+    console.error('This script needs sharp, which is not installed by default.');
+    console.error('Run:  npm i -D --no-save sharp@0.33.5 && npm run icons');
+    process.exit(1);
+}
 
 const pin = (stroke) => `
   <g transform="translate(6, 6) scale(0.8333)">
