@@ -71,6 +71,42 @@ To add ratings and photos, copy `.env.example` to `.env` and set
 > domain, and to the **Places API (New)** alone. The setup screen shows you the
 > exact referrer string to paste.
 
+## Deploying (Render)
+
+The repo ships a `render.yaml`, so a Render **Static Site** picks up the right
+build command, publish directory and headers automatically.
+
+| | |
+|---|---|
+| Build command | `npm ci && npm run build` |
+| Publish directory | `dist` |
+
+**If you set `VITE_GOOGLE_MAPS_API_KEY` in Render's environment, restrict the
+key first.** Vite inlines `VITE_*` values into the JavaScript bundle, so on a
+public URL that key is readable by anyone who opens devtools. In Google Cloud
+Console, on that key, set both:
+
+- **Application restrictions** -> HTTP referrers -> `https://<your-site>.onrender.com/*`
+- **API restrictions** -> Places API (New) only
+
+Without both, an unrestricted key on a public site can be scraped and billed to
+you. The app's setup screen shows the exact referrer string to paste. If you set
+no key at all, the deploy still works -- it just runs on OpenStreetMap alone.
+
+### Why the header rules exist
+
+Deploying a PWA behind a CDN has one classic failure mode: `index.html` and
+`sw.js` get cached, so a deploy lands but returning visitors stay on the old app
+indefinitely. `render.yaml` caches the content-hashed `/assets/*` forever and
+explicitly refuses to cache `index.html`, `sw.js`, `registerSW.js` and the
+manifest.
+
+One deliberate choice worth knowing: `Referrer-Policy` is
+`strict-origin-when-cross-origin`, **not** `no-referrer`. Google's HTTP-referrer
+key restriction works by reading the `Referer` header, so suppressing it would
+cause every Places call to be rejected. The share link keeps its coordinates in
+the URL hash, which is never transmitted regardless.
+
 ## Commands
 
 | | |
@@ -80,6 +116,7 @@ To add ratings and photos, copy `.env.example` to `.env` and set
 | `npm run lint` | ESLint |
 | `node test/sweep-live.mjs [lat] [lon] [km]` | live Overpass sweep; touches no Google quota |
 | `node test/repetition.mjs` | the before/after repetition report above |
+| `npm run icons` | regenerate PWA icons (needs `npm i -D --no-save sharp` first) |
 
 `VITE_ENRICH_MODE=mock` returns deterministic synthetic ratings, so the UI can
 be developed against realistic-looking data at zero API spend.
