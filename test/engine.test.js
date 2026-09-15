@@ -259,6 +259,26 @@ describe('google matcher', () => {
         expect(diceSimilarity(normalizeName('Al Jood Lebanese'), normalizeName('Lebanese Al Jood'))).toBeGreaterThan(0.7);
     });
 
+    /** Tuned against 45 real Google responses for Muscat. The weighted score
+     *  alone rejected listings sitting on top of the target but formatting
+     *  their name differently -- a branch suffix, or a bilingual name. */
+    it('accepts a differently-formatted name in the same building', () => {
+        const m = scoreMatch(osm('Pizza Hut'), g('Pizza Hut | Al Khuwair Oman Oil', 23.50008, 58.4));
+        expect(m.accepted).toBe(true);
+        expect(m.reason).toBe('same-building');
+    });
+
+    it('accepts a transliterated name a short walk away', () => {
+        // استار بكس is Starbucks; the two datasets place it ~50m apart.
+        expect(scoreMatch(osm('استار بكس'), g('Starbucks', 23.50045, 58.4)).accepted).toBe(true);
+    });
+
+    /** The guard that keeps proximity from swallowing neighbours: a wrong
+     *  rating is worse than no rating. */
+    it('still rejects a different business just beyond the coincident radius', () => {
+        expect(scoreMatch(osm('Cowboy SteakHouse'), g('Pizza Hut', 23.5005, 58.4)).accepted).toBe(false);
+    });
+
     it.each([
         ['exact same-script match', osm('Turkish Days'), g('Turkish Days'), true],
         ['cross-script, coincident', osm('مطعم الجود اللبناني'), g('Al Jood Lebanese', 23.50001, 58.40001), true],
