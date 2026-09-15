@@ -7,15 +7,6 @@ import { pruneShows } from './decay.js';
  *  everything -- which is a large part of why the same places kept coming back.
  */
 
-export const loadSeen = async (ids) => {
-    const db = await getDB();
-    const tx = db.transaction(STORES.seen, 'readonly');
-    const rows = await Promise.all(ids.map((id) => tx.store.get(id)));
-    await tx.done;
-    const map = new Map();
-    rows.forEach((r, i) => { if (r) map.set(ids[i], r); });
-    return map;
-};
 
 export const loadAllSeen = async () => {
     const db = await getDB();

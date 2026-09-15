@@ -104,8 +104,7 @@ export const SettingsSheet = ({ open, onClose, reduced, apiKey, showRatings, onS
                                 className="mt-1.5 opacity-70 break-words"
                                 style={{
                                     fontSize: '0.6875rem',
-                                    fontFamily:
-                                        "ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace",
+                                    fontFamily: 'var(--mono)',
                                 }}
                             >
                                 Google said: {status.detail}
@@ -187,14 +186,11 @@ export const SettingsSheet = ({ open, onClose, reduced, apiKey, showRatings, onS
                         spellCheck={false}
                         inputMode="text"
                         className="flex-1 h-10 px-3 rounded-xl border text-sm"
-                        // Monospace on purpose: in a UI typeface capital I and
-                        // lowercase l are indistinguishable, which is exactly how a
-                        // mistyped key survives visual checking.
                         style={{
                             borderColor: 'var(--line)',
                             background: 'var(--surface-2)',
                             color: 'var(--ink)',
-                            fontFamily: "ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace",
+                            fontFamily: 'var(--mono)',
                         }}
                     />
                 <button

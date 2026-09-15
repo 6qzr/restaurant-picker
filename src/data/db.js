@@ -46,7 +46,3 @@ export const getDB = () => {
     return dbPromise;
 };
 
-/** Test seam: lets the simulation and unit tests swap in fake-indexeddb. */
-export const _resetDBForTests = () => {
-    dbPromise = null;
-};

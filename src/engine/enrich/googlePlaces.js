@@ -234,11 +234,12 @@ export const sanitizeKey = (key = '') =>
 export const inspectKeyShape = (key = '') => {
     const trimmed = sanitizeKey(key);
     if (!trimmed) return { ok: false, reason: 'empty' };
-    if (/\s/.test(trimmed)) return { ok: false, reason: 'whitespace' };
     if (!trimmed.startsWith('AIza')) {
-        // Report what it actually begins with, by code point. An invisible
-        // character is indistinguishable from a correct key on screen, and
-        // without this the message just calls a correct-looking key wrong.
+        // Report what it actually begins with. sanitizeKey has already removed
+        // anything invisible, so what survives here is a VISIBLE character that
+        // simply is not the right one -- a stray letter, or a character from
+        // another script. Rendering non-ASCII as its code point keeps the
+        // message meaningful when that character has no obvious glyph.
         return {
             ok: false,
             reason: 'prefix',
@@ -257,18 +258,21 @@ export const inspectKeyShape = (key = '') => {
  *  "begins with AIza" is unreadable as guidance -- it cannot be used to spot
  *  that you typed the other one. Name the character, do not just show it. */
 const prefixHint = (actual = '') => {
-    const looksLikeConfusion = /^a[l1|]za/i.test(actual);
     const spelled = 'capital A, capital i, lowercase z, lowercase a';
-    return looksLikeConfusion
-        ? `A Google API key begins with "AIza" -- ${spelled}. This one begins with "${actual}", which looks like a lowercase L where the capital i should be.`
-        : `A Google API key begins with "AIza" -- ${spelled}. This one begins with "${actual}".`;
+    const base = `A Google API key begins with "AIza" -- ${spelled}. This one begins with "${actual}".`;
+
+    // Name the character they actually typed. Saying "lowercase L" to someone
+    // who typed a digit sends them looking for a mistake that is not there.
+    const lookalike = { l: 'a lowercase L', 1: 'a digit one', '|': 'a pipe' }[actual[1]];
+    return lookalike
+        ? `${base} The second character is ${lookalike}, where the key needs a capital i.`
+        : base;
 };
 
+/** Only the reasons that reach the fallback branch in testConnection.
+ *  'length' and 'prefix' build their own messages from the shape detail. */
 const SHAPE_HINTS = {
     empty: 'No API key is set.',
-    whitespace: 'That key contains a space or line break. Paste it again without any surrounding text.',
-    prefix: 'That does not look like a Google API key -- they begin with "AIza".',
-    charsetDetail: null,
     charset: 'That key contains characters a Google API key never has. It may have been autocorrected; try pasting it again.',
 };
 

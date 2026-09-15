@@ -68,4 +68,3 @@ export const SAMPLING = {
     minSeparationMeters: 250,
 };
 
-export const LANES = ['safeBet', 'somethingNew', 'longShot'];

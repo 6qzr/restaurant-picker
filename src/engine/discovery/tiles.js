@@ -28,11 +28,6 @@ export const tileYToLat = (y, z) => {
 
 export const tileId = (z, x, y) => `${z}/${x}/${y}`;
 
-export const parseTileId = (id) => {
-    const [z, x, y] = id.split('/').map(Number);
-    return { z, x, y };
-};
-
 /** Tile bounds. Overpass wants (south, west, north, east). */
 export const tileBBox = (z, x, y) => ({
     north: tileYToLat(y, z),

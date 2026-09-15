@@ -13,7 +13,6 @@ import { getBudget, totalCalls } from '../../data/budgetRepo.js';
 const memory = new Map();
 const inflight = new Map();
 
-export const getCached = (id) => memory.get(id);
 export const clearMemory = () => memory.clear();
 
 /** Why enrichment is not producing results, in a form the UI can explain.

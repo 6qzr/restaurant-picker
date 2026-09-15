@@ -34,8 +34,6 @@ export const novelty = (record, now = Date.now()) => {
     return 1 / (1 + recency);
 };
 
-export const isVetoed = (record, now = Date.now()) =>
-    Boolean(record?.vetoedAt) && (now - record.vetoedAt) / DAY_MS < SCORE.vetoCooldownDays;
 
 /** Drop showings older than the prune window, so records stay small. */
 export const pruneShows = (shows = [], now = Date.now()) => {

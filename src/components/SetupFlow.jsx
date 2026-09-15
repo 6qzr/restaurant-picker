@@ -87,7 +87,7 @@ export const SetupFlow = ({ onDone }) => {
                                 borderColor: 'var(--line)',
                                 background: 'var(--surface-2)',
                                 color: 'var(--ink)',
-                                fontFamily: "ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace",
+                                fontFamily: 'var(--mono)',
                             }}
                         />
 

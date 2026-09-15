@@ -559,11 +559,22 @@ describe('api key sanitising', () => {
      *  typed as "Alza", because capital I and lowercase l are the same shape in
      *  most UI typefaces -- including the one the error message was rendered in,
      *  so the message could not be used to spot the mistake. */
-    it('detects a lowercase L typed where the capital i belongs', async () => {
-        const r = await testConnection('Alza' + 'b'.repeat(35));
+    it.each([
+        ['lowercase L', 'Alza', 'a lowercase L'],
+        ['digit one', 'A1za', 'a digit one'],
+        ['pipe', 'A|za', 'a pipe'],
+    ])('names %s specifically when typed where the capital i belongs', async (_label, prefix, expected) => {
+        const r = await testConnection(prefix + 'b'.repeat(35));
         expect(r.code).toBe('bad-key-shape');
-        expect(r.hint).toMatch(/lowercase L where the capital i should be/);
+        // Naming the wrong character matters: telling someone who typed a digit
+        // to look for a lowercase L sends them hunting a mistake that is not there.
+        expect(r.hint).toContain(`The second character is ${expected}`);
         expect(r.hint).toMatch(/capital A, capital i, lowercase z, lowercase a/);
+    });
+
+    it('does not invent a lookalike when the prefix is simply wrong', async () => {
+        const r = await testConnection('zzzz' + 'b'.repeat(35));
+        expect(r.hint).not.toMatch(/second character is/);
     });
 
     it('spells out the prefix rather than only showing it', async () => {
