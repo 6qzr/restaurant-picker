@@ -73,12 +73,15 @@ export const SetupFlow = ({ onDone }) => {
                         </p>
 
                         <input
-                            type="password"
+                            type="text"
                             value={key}
                             onChange={(e) => setKey(e.target.value)}
                             placeholder="AIza..."
                             autoComplete="off"
+                            autoCorrect="off"
+                            autoCapitalize="none"
                             spellCheck={false}
+                            inputMode="text"
                             className="w-full h-11 px-3 rounded-xl border mb-3 text-sm"
                             style={{ borderColor: 'var(--line)', background: 'var(--surface-2)', color: 'var(--ink)' }}
                         />

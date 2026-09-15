@@ -161,11 +161,19 @@ export const SettingsSheet = ({ open, onClose, reduced, apiKey, showRatings, onS
                     }}
                 >
                     <input
-                        type="password"
+                        // Deliberately NOT type="password": you cannot see a
+                        // truncated or autocorrected paste in a masked field,
+                        // and password managers offer to fill it. The key is
+                        // already visible in the user's own console.
+                        type="text"
                         value={keyInput}
                         onChange={(e) => setKeyInput(e.target.value)}
                         placeholder={apiKey ? 'Paste a different key to replace it' : 'Paste a Places API key'}
                         autoComplete="off"
+                        autoCorrect="off"
+                        autoCapitalize="none"
+                        spellCheck={false}
+                        inputMode="text"
                         className="flex-1 h-10 px-3 rounded-xl border text-sm"
                         style={{ borderColor: 'var(--line)', background: 'var(--surface-2)', color: 'var(--ink)' }}
                     />
