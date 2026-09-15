@@ -6,7 +6,7 @@ import { pickNext, similarity, passesConstraints } from '../src/engine/rank/mmr.
 import { encodeBoard, decodeBoard } from '../src/share/codec.js';
 import { normalizeElement } from '../src/engine/discovery/osmNormalize.js';
 import { scoreMatch, normalizeName, diceSimilarity } from '../src/engine/enrich/matcher.js';
-import { classifyError, QuotaError, inspectKeyShape } from '../src/engine/enrich/googlePlaces.js';
+import { classifyError, QuotaError, inspectKeyShape, sanitizeKey } from '../src/engine/enrich/googlePlaces.js';
 import { coveringTiles, tileSizeKm, tileBBox, latToTileY, lonToTileX } from '../src/engine/discovery/tiles.js';
 import { quality, proximity } from '../src/engine/rank/score.js';
 import { mapsUrlFor, directionsUrlFor } from '../src/utils/format.js';
@@ -462,21 +462,73 @@ describe('api key shape', () => {
         expect(r.length).toBe(35);
     });
 
-    it('catches a key a mobile keyboard has autocorrected', () => {
-        // en-dash substituted for the hyphen
-        expect(inspectKeyShape('AIza–' + 'b'.repeat(34)).reason).toBe('charset');
+    /** An autocorrected dash is now REPAIRED rather than rejected -- see the
+     *  sanitising suite. What must still be caught is a character that is not a
+     *  recoverable substitution. */
+    it('rejects a character that is not a recoverable substitution', () => {
+        expect(inspectKeyShape('AIza!' + 'b'.repeat(34)).reason).toBe('charset');
+    });
+
+    it('accepts a key whose hyphens a keyboard replaced with en-dashes', () => {
+        expect(inspectKeyShape('AIza–' + 'b'.repeat(34)).ok).toBe(true);
     });
 
     it.each([
         ['empty', '', 'empty'],
         ['not a Google key', 'my-api-key', 'prefix'],
-        ['contains a line break', `AIza${'b'.repeat(31)}
-bbbb`, 'whitespace'],
+        // Whitespace is stripped by the sanitiser, so what remains is judged on
+        // length -- a key with a line break in it is still the right length.
+        ['too short once whitespace is stripped', `AIza${'b'.repeat(20)}
+bbbb`, 'length'],
     ])('rejects %s', (_label, key, reason) => {
         expect(inspectKeyShape(key).reason).toBe(reason);
     });
 
     it('tolerates surrounding whitespace from a clipboard', () => {
         expect(inspectKeyShape(`  ${GOOD}  `).ok).toBe(true);
+    });
+});
+
+describe('api key sanitising', () => {
+    // Shape-accurate but synthetic: 39 chars, and two hyphens so the
+    // dash-substitution cases below are genuinely exercised.
+    const GOOD = 'AIzaSyEXAMPLE-NOT-A-REAL-KEY-0123456789';
+    const ch = (c) => String.fromCharCode(c);
+
+    /** Reported: the key worked on desktop but never on an iPhone, in both
+     *  Safari and Chrome, even typed character by character. Smart punctuation
+     *  applies as you TYPE, so typing slowly does not avoid it, and a single
+     *  substituted dash is invisible on screen but fatal to the request. */
+    it.each([
+        ['en dash', 0x2013],
+        ['em dash', 0x2014],
+        ['figure dash', 0x2012],
+        ['non-breaking hyphen', 0x2011],
+        ['minus sign', 0x2212],
+    ])('repairs a %s substituted for a hyphen', (_label, code) => {
+        expect(sanitizeKey(GOOD.replace(/-/g, ch(code)))).toBe(GOOD);
+    });
+
+    it.each([
+        ['non-breaking space', 0x00a0],
+        ['zero-width space', 0x200b],
+        ['zero-width joiner', 0x200d],
+        ['byte order mark', 0xfeff],
+    ])('strips an embedded %s', (_label, code) => {
+        expect(sanitizeKey(GOOD.slice(0, 20) + ch(code) + GOOD.slice(20))).toBe(GOOD);
+    });
+
+    it('trims clipboard whitespace', () => {
+        expect(sanitizeKey(`
+  ${GOOD}  
+`)).toBe(GOOD);
+    });
+
+    it('leaves a correct key untouched', () => {
+        expect(sanitizeKey(GOOD)).toBe(GOOD);
+    });
+
+    it('does not disguise a genuinely truncated key', () => {
+        expect(inspectKeyShape(GOOD.slice(0, 35)).reason).toBe('length');
     });
 });

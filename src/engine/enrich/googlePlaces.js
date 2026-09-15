@@ -30,7 +30,7 @@ export class QuotaError extends Error {}
  *  the user; `docsUrl` is where they go to fix it.
  */
 export class EnrichmentError extends Error {
-    constructor(code, hint, { status, googleStatus, docsUrl } = {}) {
+    constructor(code, hint, { status, googleStatus, docsUrl, googleMessage } = {}) {
         super(hint);
         this.name = 'EnrichmentError';
         this.code = code;
@@ -38,6 +38,9 @@ export class EnrichmentError extends Error {
         this.status = status;
         this.googleStatus = googleStatus;
         this.docsUrl = docsUrl;
+        // Google's own wording, kept so a failure on a device we cannot inspect
+        // can still be reported back verbatim.
+        this.googleMessage = googleMessage;
     }
 }
 
@@ -57,12 +60,13 @@ export const classifyError = (status, payload) => {
     const msg = String(err.message ?? '');
     const gStatus = err.status ?? '';
     const reason = err.details?.find((d) => d.reason)?.reason ?? '';
+    const raw = { status, googleStatus: gStatus, googleMessage: msg };
 
     if (reason === 'API_KEY_INVALID' || /API key not valid/i.test(msg)) {
         return new EnrichmentError(
             'invalid-key',
             'Google rejected that key. Check it was copied in full, and that it belongs to the project where Places API (New) is enabled.',
-            { status, googleStatus: gStatus }
+            { ...raw }
         );
     }
     // Distinct from SERVICE_DISABLED: here the API may well be enabled on the
@@ -72,14 +76,14 @@ export const classifyError = (status, payload) => {
         return new EnrichmentError(
             'key-restricted',
             'This key is not allowed to call Places API (New). Open the key in Google Cloud, and under "API restrictions" add Places API (New) to the allowed list.',
-            { status, googleStatus: gStatus, docsUrl: CREDENTIALS_URL }
+            { ...raw, docsUrl: CREDENTIALS_URL }
         );
     }
     if (reason === 'SERVICE_DISABLED' || /has not been used in project|is disabled/i.test(msg)) {
         return new EnrichmentError(
             'not-enabled',
             'Places API (New) is not enabled on your Google Cloud project. It is a separate service from the older "Places API".',
-            { status, googleStatus: gStatus, docsUrl: ENABLE_URL }
+            { ...raw, docsUrl: ENABLE_URL }
         );
     }
     if (reason === 'API_KEY_HTTP_REFERRER_BLOCKED' || /referer|referrer/i.test(msg)) {
@@ -89,19 +93,19 @@ export const classifyError = (status, payload) => {
             globalThis.location?.origin
                 ? `This key is restricted to a different site. Add ${globalThis.location.origin}/* to its allowed HTTP referrers.`
                 : 'This key is restricted to a different site. Add this site’s address to its allowed HTTP referrers.',
-            { status, googleStatus: gStatus }
+            { ...raw }
         );
     }
     if (reason === 'BILLING_DISABLED' || /billing/i.test(msg)) {
-        return new EnrichmentError('billing', 'Billing is not enabled on this Google Cloud project.', { status, googleStatus: gStatus });
+        return new EnrichmentError('billing', 'Billing is not enabled on this Google Cloud project.', { ...raw });
     }
     if (status === 429 || gStatus === 'RESOURCE_EXHAUSTED') {
         return new QuotaError('Google Places quota exhausted');
     }
     if (status === 403) {
-        return new EnrichmentError('forbidden', msg || 'Google refused this request.', { status, googleStatus: gStatus });
+        return new EnrichmentError('forbidden', msg || 'Google refused this request.', { ...raw });
     }
-    return new EnrichmentError('error', msg || `Google Places returned ${status}.`, { status, googleStatus: gStatus });
+    return new EnrichmentError('error', msg || `Google Places returned ${status}.`, { ...raw });
 };
 
 const request = async (url, { apiKey, mask, method = 'GET', body, signal }) => {
@@ -206,8 +210,25 @@ export const resolveByText = async (place, { apiKey, withRatings, signal, langua
  *  that dropped characters, or a mobile keyboard that autocorrected one -- from
  *  an opaque "not valid" from Google into a specific, self-evident message.
  */
+/** Repair the substitutions an iOS keyboard makes without being asked.
+ *
+ *  Smart punctuation rewrites hyphens as en/em dashes and inserts non-breaking
+ *  spaces, and it applies as you TYPE -- so entering the key character by
+ *  character does not avoid it. A key containing one en-dash is rejected by
+ *  Google outright, and looks completely correct on screen.
+ */
+export const sanitizeKey = (key = '') =>
+    String(key)
+        .normalize('NFKC')
+        // Every hyphen-like glyph an iOS keyboard may substitute -> plain hyphen.
+        .replace(/[\u2010-\u2015\u2212]/g, '-')
+        // All whitespace (NFKC folds a non-breaking space into a normal one)
+        // plus the zero-width characters that survive a copy-paste.
+        .replace(/[\s\u200B-\u200D\uFEFF]+/g, '')
+        .trim();
+
 export const inspectKeyShape = (key = '') => {
-    const trimmed = String(key).trim();
+    const trimmed = sanitizeKey(key);
     if (!trimmed) return { ok: false, reason: 'empty' };
     if (/\s/.test(trimmed)) return { ok: false, reason: 'whitespace' };
     if (!trimmed.startsWith('AIza')) return { ok: false, reason: 'prefix' };
@@ -224,7 +245,8 @@ const SHAPE_HINTS = {
 };
 
 export const testConnection = async (apiKey, { signal } = {}) => {
-    const shape = inspectKeyShape(apiKey);
+    const key = sanitizeKey(apiKey);
+    const shape = inspectKeyShape(key);
     if (!shape.ok) {
         const hint =
             shape.reason === 'length'
@@ -234,7 +256,7 @@ export const testConnection = async (apiKey, { signal } = {}) => {
     }
     try {
         await request(`${BASE}/places:searchText`, {
-            apiKey,
+            apiKey: key,
             method: 'POST',
             mask: 'places.id',
             signal,
@@ -247,7 +269,14 @@ export const testConnection = async (apiKey, { signal } = {}) => {
             return { ok: false, code: 'quota', hint: 'Quota exhausted for this key.' };
         }
         if (err instanceof EnrichmentError) {
-            return { ok: false, code: err.code, hint: err.hint, docsUrl: err.docsUrl, googleStatus: err.googleStatus };
+            return {
+                ok: false,
+                code: err.code,
+                hint: err.hint,
+                docsUrl: err.docsUrl,
+                googleStatus: err.googleStatus,
+                detail: err.googleMessage,
+            };
         }
         // fetch() rejects with a TypeError and no status when the request never
         // reaches Google at all -- offline, DNS, or a blocking extension.

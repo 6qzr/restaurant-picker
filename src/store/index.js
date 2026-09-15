@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { SEARCH, SAMPLING } from '../config.js';
 import { randomSeed } from '../engine/prng.js';
 import { pickBoard, swapLane } from '../engine/rank/pick.js';
+import { sanitizeKey } from '../engine/enrich/googlePlaces.js';
 
 /** One store, read and written from plain modules as well as React.
  *
@@ -47,7 +48,11 @@ export const useStore = create((set, get) => ({
     showRatings: loadJSON('cc_ratings', true),
     reducedMotion: false,
 
-    setApiKey: (apiKey) => {
+    setApiKey: (raw) => {
+        // Repair here, at the one place a key enters the app, so the stored
+        // value is always the real key rather than whatever a mobile keyboard
+        // decided to substitute.
+        const apiKey = sanitizeKey(raw);
         try { localStorage.setItem('cc_api_key', apiKey); } catch { /* ignore */ }
         set({ apiKey });
     },

@@ -57,7 +57,7 @@ export const SettingsSheet = ({ open, onClose, reduced, apiKey, showRatings, onS
         setTesting(true);
         setStatus(null);
         const result = await testConnection(key);
-        setStatus({ code: result.code, hint: result.hint, docsUrl: result.docsUrl, at: Date.now() });
+        setStatus({ code: result.code, hint: result.hint, docsUrl: result.docsUrl, detail: result.detail, at: Date.now() });
         setTesting(false);
     };
 
@@ -99,6 +99,11 @@ export const SettingsSheet = ({ open, onClose, reduced, apiKey, showRatings, onS
                     />
                     <div className="min-w-0">
                         <p style={{ color: 'var(--ink)' }}>{status.hint}</p>
+                        {status.detail && (
+                            <p className="mt-1.5 opacity-70 break-words" style={{ fontSize: '0.6875rem' }}>
+                                Google said: {status.detail}
+                            </p>
+                        )}
                         {status.docsUrl && (
                             <a
                                 href={status.docsUrl}
