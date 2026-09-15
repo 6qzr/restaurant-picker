@@ -1,23 +1,178 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Playfair+Display:wght@700&display=swap');
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+/* Type scale: tracking is size-specific, never one global value. Large text
+   needs negative tracking (letters read too far apart as they grow); small
+   uppercase meta needs positive. Leading tightens as size grows. */
+
+:root {
+  color-scheme: light;
+
+  --paper: #f7f4f1;
+  --surface: #ffffff;
+  --surface-2: #fbf9f7;
+  --ink: #23201f;
+  --ink-2: #57514e;
+  --ink-3: #8a8380;
+  --line: #e8e2dd;
+  --gold: #b8894a;
+  --gold-soft: #f3e6d4;
+  --accent: #2f6f5e;
+  --danger: #c2452f;
+
+  --chrome-bg: rgba(247, 244, 241, 0.72);
+  --chrome-blur: 20px;
+  --chrome-sat: 180%;
+
+  --shadow-card: 0 1px 2px rgba(35, 32, 31, 0.04), 0 8px 24px rgba(35, 32, 31, 0.07);
+  --shadow-lift: 0 2px 4px rgba(35, 32, 31, 0.06), 0 18px 48px rgba(35, 32, 31, 0.14);
+
+  --radius: 20px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    color-scheme: dark;
+    --paper: #141211;
+    --surface: #1e1b1a;
+    --surface-2: #262221;
+    --ink: #f3efec;
+    --ink-2: #bab2ad;
+    --ink-3: #857d79;
+    --line: #322d2b;
+    --gold: #d9a463;
+    --gold-soft: #3a2e1f;
+    --accent: #6fbfa5;
+    --danger: #e8705a;
+    --chrome-bg: rgba(20, 18, 17, 0.72);
+    --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4), 0 8px 24px rgba(0, 0, 0, 0.35);
+    --shadow-lift: 0 2px 4px rgba(0, 0, 0, 0.5), 0 18px 48px rgba(0, 0, 0, 0.5);
+  }
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --paper: #141211;
+  --surface: #1e1b1a;
+  --surface-2: #262221;
+  --ink: #f3efec;
+  --ink-2: #bab2ad;
+  --ink-3: #857d79;
+  --line: #322d2b;
+  --gold: #d9a463;
+  --gold-soft: #3a2e1f;
+  --accent: #6fbfa5;
+  --danger: #e8705a;
+  --chrome-bg: rgba(20, 18, 17, 0.72);
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4), 0 8px 24px rgba(0, 0, 0, 0.35);
+  --shadow-lift: 0 2px 4px rgba(0, 0, 0, 0.5), 0 18px 48px rgba(0, 0, 0, 0.5);
+}
+
+html {
+  /* Spacing in rem so a larger text setting scales the layout with the text
+     instead of breaking it. */
+  font-size: 100%;
+}
+
 body {
-    background-color: #f8f5f2; /* theme.colors.paper */
-    color: #2d2a2e; /* theme.colors.ink */
-    -webkit-font-smoothing: antialiased;
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: 'Inter Variable', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI',
+    'Noto Sans Arabic', 'Geeza Pro', system-ui, sans-serif;
+  line-height: 1.5;
+  letter-spacing: 0;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
 @layer components {
-    .btn-timeless {
-        @apply px-6 py-3 bg-ink text-paper font-semibold rounded-full 
-               transition-all duration-300 hover:scale-105 active:scale-95
-               shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed;
-    }
-    .card-timeless {
-        @apply bg-white rounded-2xl shadow-sm border border-stone-100 overflow-hidden
-               transition-all duration-500 hover:shadow-md;
-    }
+  .chrome {
+    background: var(--chrome-bg);
+    backdrop-filter: blur(var(--chrome-blur)) saturate(var(--chrome-sat));
+    -webkit-backdrop-filter: blur(var(--chrome-blur)) saturate(var(--chrome-sat));
+  }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-card);
+  }
+
+  .display {
+    font-size: clamp(1.35rem, 4.5vw, 1.9rem);
+    line-height: 1.08;
+    letter-spacing: -0.02em;
+    font-weight: 650;
+  }
+
+  .meta {
+    font-size: 0.6875rem;
+    line-height: 1.3;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    font-weight: 600;
+  }
+
+  .btn {
+    border-radius: 999px;
+    font-weight: 600;
+    transition: transform 100ms ease-out, background-color 160ms ease-out,
+      border-color 160ms ease-out, color 160ms ease-out;
+  }
+
+  /* Feedback lives on the press. Waiting for the release feels dead. */
+  .btn:active:not(:disabled) {
+    transform: scale(0.97);
+  }
+}
+
+/* Scroll-edge fade where content meets floating chrome, instead of a hard 1px
+   divider. Only where floating UI actually overlaps content. */
+.edge-fade-top {
+  mask-image: linear-gradient(to bottom, transparent 0, black 28px);
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, black 28px);
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  scrollbar-width: none;
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .chrome {
+    background: var(--paper);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+}
+
+@media (prefers-contrast: more) {
+  .card {
+    border-color: currentColor;
+    box-shadow: none;
+  }
+  .chrome {
+    background: var(--paper);
+    backdrop-filter: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Numeric+unit runs must not reverse inside an RTL name context. */
+[dir='ltr'] {
+  unicode-bidi: isolate;
 }

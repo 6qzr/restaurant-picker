@@ -1,40 +1,37 @@
 /** @type {import('tailwindcss').Config} */
 export default {
-    content: [
-        "./index.html",
-        "./src/**/*.{js,ts,jsx,tsx}",
-    ],
+    content: ['./index.html', './src/**/*.{js,jsx}'],
     theme: {
         extend: {
             fontFamily: {
-                sans: ['Inter', 'system-ui', 'sans-serif'],
-                serif: ['Playfair Display', 'serif'], // For headings/elegant touches
+                // Inter has no Arabic coverage; roughly a third of the places in
+                // this dataset are Arabic-named, so we fall through to the OS
+                // Arabic face rather than shipping an Arabic webfont.
+                sans: [
+                    'Inter Variable', 'Inter', '-apple-system', 'BlinkMacSystemFont',
+                    'Segoe UI', 'Noto Sans Arabic', 'Geeza Pro', 'system-ui', 'sans-serif',
+                ],
+            },
+            /* Tracking and leading are size-specific. A single global
+               letter-spacing is wrong at one end of the scale or the other. */
+            fontSize: {
+                xs: ['0.75rem', { lineHeight: '1.4', letterSpacing: '0.01em' }],
+                sm: ['0.875rem', { lineHeight: '1.5', letterSpacing: '0' }],
+                base: ['1rem', { lineHeight: '1.5', letterSpacing: '0' }],
+                lg: ['1.125rem', { lineHeight: '1.35', letterSpacing: '-0.01em' }],
+                xl: ['1.3rem', { lineHeight: '1.25', letterSpacing: '-0.015em' }],
+                '2xl': ['1.65rem', { lineHeight: '1.15', letterSpacing: '-0.02em' }],
+                '3xl': ['2.1rem', { lineHeight: '1.08', letterSpacing: '-0.025em' }],
             },
             colors: {
-                // Timeless Palette: High contrast, paper-like backgrounds, deep inks.
-                paper: '#f8f5f2', // Off-white/cream
-                ink: '#2d2a2e',   // Soft Black
-                gold: '#c5a059',  // Accent
-                // Functional
-                success: '#2e7d32',
-                danger: '#d32f2f',
+                paper: 'var(--paper)',
+                surface: 'var(--surface)',
+                ink: 'var(--ink)',
+                gold: 'var(--gold)',
+                accent: 'var(--accent)',
+                danger: 'var(--danger)',
             },
-            animation: {
-                'spin-slow': 'spin 3s linear infinite',
-                'fade-in': 'fadeIn 0.5s ease-out forwards',
-                'slide-up': 'slideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards',
-            },
-            keyframes: {
-                fadeIn: {
-                    '0%': { opacity: '0' },
-                    '100%': { opacity: '1' },
-                },
-                slideUp: {
-                    '0%': { transform: 'translateY(20px)', opacity: '0' },
-                    '100%': { transform: 'translateY(0)', opacity: '1' },
-                }
-            }
         },
     },
     plugins: [],
-}
+};

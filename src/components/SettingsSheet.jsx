@@ -1,0 +1,140 @@
+import { useEffect, useState } from 'react';
+import { RotateCcw, Star, KeyRound } from 'lucide-react';
+import Sheet from './primitives/Sheet.jsx';
+import { Bidi, Num } from './primitives/Bidi.jsx';
+import { listVetoed, clearVeto } from '../engine/history/seenStore.js';
+import { getBudget, totalCalls } from '../data/budgetRepo.js';
+import { enrichmentStatus } from '../engine/enrich/enrichQueue.js';
+
+const Row = ({ label, hint, children }) => (
+    <div className="flex items-center justify-between gap-4 py-3 border-b" style={{ borderColor: 'var(--line)' }}>
+        <div className="min-w-0">
+            <p className="text-sm font-medium">{label}</p>
+            {hint && <p className="text-xs mt-0.5" style={{ color: 'var(--ink-3)' }}>{hint}</p>}
+        </div>
+        <div className="shrink-0">{children}</div>
+    </div>
+);
+
+const Toggle = ({ on, onChange, label }) => (
+    <button
+        type="button"
+        role="switch"
+        aria-checked={on}
+        aria-label={label}
+        onClick={() => onChange(!on)}
+        className="btn relative w-11 h-6 rounded-full transition-colors"
+        style={{ background: on ? 'var(--accent)' : 'var(--line)' }}
+    >
+        <span
+            className="absolute top-0.5 w-5 h-5 rounded-full bg-white transition-all"
+            style={{ insetInlineStart: on ? '1.375rem' : '0.125rem' }}
+        />
+    </button>
+);
+
+export const SettingsSheet = ({ open, onClose, reduced, apiKey, showRatings, onShowRatings, onSetKey }) => {
+    const [vetoed, setVetoed] = useState([]);
+    const [budget, setBudget] = useState(null);
+    const [keyInput, setKeyInput] = useState('');
+
+    useEffect(() => {
+        if (!open) return;
+        listVetoed().then(setVetoed).catch(() => setVetoed([]));
+        getBudget().then(setBudget).catch(() => setBudget(null));
+        setKeyInput('');
+    }, [open]);
+
+    const unVeto = async (id) => {
+        await clearVeto(id);
+        setVetoed(await listVetoed());
+    };
+
+    const status = enrichmentStatus();
+
+    return (
+        <Sheet open={open} onClose={onClose} title="Settings" reduced={reduced}>
+            <Row
+                label="Show ratings"
+                hint={
+                    apiKey
+                        ? 'Star ratings cost more per lookup than photos alone.'
+                        : 'Needs a Google key. Everything else works without one.'
+                }
+            >
+                <Toggle on={showRatings && Boolean(apiKey)} onChange={onShowRatings} label="Show ratings" />
+            </Row>
+
+            <Row
+                label="Google key"
+                hint={apiKey ? 'Saved on this device only.' : 'Not set — running on OpenStreetMap alone.'}
+            >
+                <KeyRound className="w-4 h-4" style={{ color: apiKey ? 'var(--accent)' : 'var(--ink-3)' }} />
+            </Row>
+
+            {!apiKey && (
+                <form
+                    className="flex gap-2 py-3"
+                    onSubmit={(e) => {
+                        e.preventDefault();
+                        if (keyInput.trim()) onSetKey(keyInput.trim());
+                    }}
+                >
+                    <input
+                        type="password"
+                        value={keyInput}
+                        onChange={(e) => setKeyInput(e.target.value)}
+                        placeholder="Paste a Places API key"
+                        autoComplete="off"
+                        className="flex-1 h-10 px-3 rounded-xl border text-sm"
+                        style={{ borderColor: 'var(--line)', background: 'var(--surface-2)', color: 'var(--ink)' }}
+                    />
+                    <button type="submit" className="btn px-4 h-10 text-sm border" style={{ borderColor: 'var(--line)' }}>
+                        Save
+                    </button>
+                </form>
+            )}
+
+            {budget && (
+                <Row label="Google lookups this month" hint={status === 'quota' ? 'Paused — running on OpenStreetMap alone.' : 'Only the cards you actually see are looked up.'}>
+                    <Num className="text-sm font-semibold tabular-nums">{totalCalls(budget)}</Num>
+                </Row>
+            )}
+
+            <div className="pt-4">
+                <p className="meta mb-2" style={{ color: 'var(--ink-3)' }}>
+                    Vetoed places ({vetoed.length})
+                </p>
+                {vetoed.length === 0 ? (
+                    <p className="text-sm" style={{ color: 'var(--ink-3)' }}>
+                        Nothing vetoed. Swipe a card away to hide it for a few months.
+                    </p>
+                ) : (
+                    <ul className="space-y-1 max-h-48 overflow-y-auto">
+                        {vetoed.map((v) => (
+                            <li key={v.id} className="flex items-center justify-between gap-3 text-sm">
+                                <Bidi className="truncate" style={{ color: 'var(--ink-2)' }}>{v.name ?? v.id}</Bidi>
+                                <button
+                                    type="button"
+                                    onClick={() => unVeto(v.id)}
+                                    className="btn inline-flex items-center gap-1 px-2 py-1 text-xs border shrink-0"
+                                    style={{ borderColor: 'var(--line)' }}
+                                >
+                                    <RotateCcw className="w-3 h-3" /> Restore
+                                </button>
+                            </li>
+                        ))}
+                    </ul>
+                )}
+            </div>
+
+            <p className="text-xs mt-5 flex items-start gap-1.5" style={{ color: 'var(--ink-3)' }}>
+                <Star className="w-3 h-3 mt-0.5 shrink-0" />
+                Ratings and photos come from Google and are kept only for this session.
+                Place data comes from OpenStreetMap and is stored on your device.
+            </p>
+        </Sheet>
+    );
+};
+
+export default SettingsSheet;

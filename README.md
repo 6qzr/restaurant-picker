@@ -1,80 +1,113 @@
-# 🍽️ Chef's Choice - Restaurant Picker
+# Chef's Choice
 
-A "Timeless Game" style application to solve the eternal question: **"Where should we eat?"**
+Three places to eat near you — and never the same three twice.
 
-Instead of overwhelming you with a list of 50 places, Chef's Choice uses a smart algorithm to curate just three perfect options: a **Safe Bet**, a **Hidden Gem**, and a **Wildcard**. It turns decision paralysis into a fun, gamified experience.
+Hit one button and get a **Safe Bet**, **Something New**, and a **Long Shot**.
+Swipe away anything you don't want. It remembers what it has already shown you,
+so tomorrow is different from today.
 
-## ✨ Key Features
+---
 
-*   **🎰 Gamified "Slot Machine" Reveal**: Hit Spin and watch the options shuffle before landing on your recommendations.
-*   **🚗 Adventure Mode**:
-    *   **Standard Mode**: Finds the best food *closest* to you.
-    *   **Adventure Mode**: Prioritizes highly-rated places *further away* (near your search radius limit) for when you want a nice drive.
-*   **🎯 Smart Curation**:
-    *   **Best Rated**: High volume, high rating (The crowd favorite).
-    *   **Hidden Gem**: Amazing rating (>4.5) but fewer reviews (<150). The spots locals love.
-    *   **Wildcard**: A randomized pick to shake up your routine.
-*   **🚫 Veto Power**: Don't like a suggestion? Hit the **Ban (X)** button to veto it for the session and instantly swap it out.
-*   **📍 Search Radius**: Fully adjustable search radius (1km - 50km).
-*   **💰 Usage Tracker**: Built-in "Fuel Gauge" to track Google Maps API usage and estimated cost during development.
+## Why it was rebuilt
 
-## 🛠️ Tech Stack
+The original version kept suggesting the same handful of restaurants. That
+wasn't a tuning problem — it was structural:
 
-*   **Frontend**: React (Vite)
-*   **Styling**: Tailwind CSS + `clsx` / `tailwind-merge`
-*   **Maps**: Google Maps JavaScript API via `@vis.gl/react-google-maps`
-*   **Animations**: Framer Motion
-*   **Icons**: Lucide React
+Google's `Place.searchNearby` returns **at most 20 results, has no pagination,
+and ranks by popularity**. After filtering to rated places, the app's entire
+universe was ~15 rows, and "Best Rated" picked randomly from the top 3 of those.
+"Hidden Gem" required fewer than 150 reviews, which a popularity-ranked result
+set almost never contains, so it silently fell back to the *same* best-rated
+pool — two of the three cards were the same tier. Vetoes lived in `useState`
+and were forgotten on every reload.
 
-## 🚀 Getting Started
+Measured over a 60-day simulation (one spin per day, real Muscat data):
 
-### Prerequisites
-*   Node.js (v16+)
-*   A valid **Google Maps API Key** with "Places API" and "Maps JavaScript API" enabled.
+| | unique places / 180 slots | most-repeated place | mean gap | two cards, same cuisine |
+|---|---|---|---|---|
+| **Before** | **19 (11%)** | **50 of 60 days** | 4.8 days | 43% |
+| Old algorithm, given the full pool | 64 (36%) | 28 days | 3.7 days | 27% |
+| **After** | **149 (83%)** | **3 days** | 32 days | 0% |
 
-### Installation
+The middle row matters: widening the data alone only reaches 64. Both the data
+and the sampler had to change.
 
-1.  **Clone the repository**
-    ```bash
-    git clone https://github.com/6qzr/restaurant-picker.git
-    cd restaurant-picker
-    ```
+## How it works now
 
-2.  **Install Dependencies**
-    ```bash
-    npm install
-    ```
+**Discovery runs on OpenStreetMap, not Google.** A tiled Overpass sweep of
+Muscat at 5 km finds **505 places** where Google's cap allowed 20 — including
+the Arabic-named local spots (`مطعم الجود اللبناني`, `شاي العقيد`, `عصير تايم`)
+that popularity ranking buries under the chains. Results are cached in
+IndexedDB, so a repeat visit fills the pool in about 10 ms and the app works
+fully offline.
 
-3.  **Run Development Server**
-    ```bash
-    npm run dev
-    ```
+**Google is used only to decorate the three cards you actually see** — a rating
+and a photo each. That is roughly 3 calls per spin, against up to 50 before
+(the old radius slider fired a billed search on every tick of the drag).
 
-### Setting up the API Key
-On first launch, the app will ask for your Google Maps API Key. It stores this key safely in your browser's `localStorage` for the demo.
-*   *Note: For production deployment, you should configure this via `.env` variables.*
+**The ranking engine is built to avoid repeats.** Novelty decays with a 10-day
+half-life and *multiplies* the score rather than adding to it, so somewhere you
+saw yesterday drops out of contention without being banished forever. Selection
+uses Gumbel-top-k sampling at a temperature you control (Safe → Chaos), with a
+diversity constraint that stops the board showing three pizza places.
 
-## 🎮 How to Play
+## Running it
 
-1.  **Set your Radius**: How far are you willing to travel?
-2.  **Pick a Mood**: Toggle **Adventure Mode** (Car Icon) if you want a road trip, or stay in **Standard Mode** (Armchair) for a quick bite.
-3.  **Select Filters**: Craving Pizza? Asian? Arabian? Toggle the chips at the top.
-4.  **SPIN!**: Watch the slot machine find your spots.
-5.  **Refine**:
-    *   Use **Swap** (Refresh icon) to rotate a specific card.
-    *   Use **Veto** (Ban icon) to remove a place entirely.
-6.  **Go**: Click the "Go" button to open navigation in Google Maps.
-
-## 📂 Project Structure
-
-```
-src/
-├── components/      # UI Components (Cards, Sliders, Modals)
-├── services/        # Google Maps API & Usage Tracking logic
-├── utils/           # Helper functions (Scoring logic, Geometry)
-└── App.jsx          # Main application controller
+```bash
+npm install
+npm run dev
 ```
 
-## 📄 License
+That's the whole setup. **No API key is required** — without one you get every
+place, every filter, distances, opening hours and offline support, just no star
+ratings or photos.
 
-MIT. Go find some good food! 🍕
+To add ratings and photos, copy `.env.example` to `.env` and set
+`VITE_GOOGLE_MAPS_API_KEY`, or paste a key in the app's setup screen.
+
+> Anything prefixed `VITE_` is inlined into the built JavaScript, so a key in
+> `.env` is **public on any deployed build**. That is only acceptable if you
+> also restrict the key in Google Cloud Console — by HTTP referrer to your own
+> domain, and to the **Places API (New)** alone. The setup screen shows you the
+> exact referrer string to paste.
+
+## Commands
+
+| | |
+|---|---|
+| `npm run dev` | dev server |
+| `npm run build` | production build (PWA, service worker, icons) |
+| `npm run lint` | ESLint |
+| `node test/sweep-live.mjs [lat] [lon] [km]` | live Overpass sweep; touches no Google quota |
+| `node test/repetition.mjs` | the before/after repetition report above |
+
+`VITE_ENRICH_MODE=mock` returns deterministic synthetic ratings, so the UI can
+be developed against realistic-looking data at zero API spend.
+
+## Notes
+
+**Overpass reliability.** The public instances are free and occasionally
+overloaded. The sweep tiles its queries, rotates mirrors, backs off, records
+failed tiles for a later retry, and never blocks the UI — a tile that fails
+today is simply re-attempted next session, and the cache covers the gap. Two
+things that matter if you touch the query builder: Overpass cost scales with
+*statement count* rather than area, and regex tag matching (`~`) can't use the
+tag index, so exact `=` unions are dramatically faster.
+
+**Data terms.** OpenStreetMap data is ODbL and cached indefinitely, with
+attribution in the footer. Google Place IDs may also be stored indefinitely and
+have their own store. Google ratings, photos and display names have no caching
+exception in Google's terms, so they are held in memory for the session only —
+there is deliberately no code path in the data layer capable of writing them to
+disk.
+
+## Stack
+
+React 18 · Vite 5 · Zustand · Tailwind 3 · framer-motion · idb ·
+OpenStreetMap (Overpass) · Google Places API (New), optional
+
+Place data © [OpenStreetMap contributors](https://www.openstreetmap.org/copyright).
+
+## License
+
+MIT.
