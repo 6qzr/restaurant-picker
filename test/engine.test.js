@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { makeRng, shuffled, gumbel } from '../src/engine/prng.js';
 import { gumbelTopK, temperatureFor, plausible } from '../src/engine/rank/sample.js';
 import { novelty, recencyWeight } from '../src/engine/history/decay.js';
-import { pickNext, similarity } from '../src/engine/rank/mmr.js';
+import { pickNext, similarity, passesConstraints } from '../src/engine/rank/mmr.js';
 import { encodeBoard, decodeBoard } from '../src/share/codec.js';
 import { normalizeElement } from '../src/engine/discovery/osmNormalize.js';
 import { scoreMatch, normalizeName, diceSimilarity } from '../src/engine/enrich/matcher.js';
@@ -170,6 +170,31 @@ describe('mmr diversity', () => {
             chosen.push(next.place);
         }
         expect(chosen).toHaveLength(3);
+    });
+
+    /** Reported from the live site: two cards both reading "Pizza Hut".
+     *  OpenStreetMap had five Pizza Hut nodes among only fifteen pizza places,
+     *  and the brand constraint could not catch them because it required BOTH
+     *  records to carry a brand tag, which these do not. */
+    it('never shows the same name twice, even fully relaxed', () => {
+        const chosen = [place('a', ['pizza'], 23.5, 58.4)];
+        chosen[0].name = 'Pizza Hut';
+        const other = place('b', ['pizza'], 23.57, 58.4);
+        other.name = 'Pizza Hut';
+        expect(passesConstraints(other, chosen, 3)).toBe(false);
+    });
+
+    it('never shows the same place id twice', () => {
+        const chosen = [place('a', ['pizza'])];
+        expect(passesConstraints(place('a', ['indian'], 23.9, 58.9), chosen, 3)).toBe(false);
+    });
+
+    it('still allows genuinely different places when fully relaxed', () => {
+        const chosen = [place('a', ['pizza'], 23.5, 58.4)];
+        chosen[0].name = 'Pizza Hut';
+        const other = place('b', ['pizza'], 23.5001, 58.4);
+        other.name = "Papa John's";
+        expect(passesConstraints(other, chosen, 3)).toBe(true);
     });
 
     it('scores identical places as maximally similar', () => {
